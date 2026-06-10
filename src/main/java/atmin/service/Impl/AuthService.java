@@ -52,21 +52,15 @@ public class AuthService implements IAuthService {
             throw new DuplicateResourceException("Email already exists!");
         }
 
-        Role roleUser = roleRepository.findByName("ROLE_USER")
+        Role roleUser = roleRepository.findByName("ROLE_CUSTOMER")
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("ROLE_USER not found"));
+                        new ResourceNotFoundException("ROLE_CUSTOMER not found"));
 
-        User newUser = User.builder()
-                .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .email(request.getEmail())
-                .fullName(request.getFullName())
-                .roles(Set.of(roleUser))
-                .build();
+        User newUser = request.toEntity(passwordEncoder.encode(request.getPassword()), roleUser);
         userRepository.save(newUser);
 
         ApiResponse<Void> response = ApiResponse.success("User registered successfully!");
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @Override

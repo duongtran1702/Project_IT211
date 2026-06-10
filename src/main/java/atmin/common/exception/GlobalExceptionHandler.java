@@ -84,6 +84,18 @@ public class GlobalExceptionHandler {
 
 
     //503 Service Unavailable: Xử lý lỗi mất kết nối hạ tầng mây Cloudinary
+    @ExceptionHandler(CloudStorageException.class)
+    public ResponseEntity<ApiErrorResponse> handleCloudStorageException(CloudStorageException ex, HttpServletRequest request) {
+        ApiErrorResponse errorResponse = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.SERVICE_UNAVAILABLE.value())
+                .error(HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build();
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.SERVICE_UNAVAILABLE);
+    }
 
     // 500 Internal Server Error
     @ExceptionHandler(RuntimeException.class)
