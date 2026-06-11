@@ -9,6 +9,10 @@ import atmin.controller.auth.dto.response.AuthResponse;
 import atmin.entity.RefreshToken;
 import atmin.entity.Role;
 import atmin.entity.User;
+import atmin.entity.TokenBlacklist;
+import atmin.repository.TokenBlacklistRepository;
+import java.time.ZoneId;
+import java.util.Date;
 import atmin.infrastructure.security.jwt.JwtProperties;
 import atmin.infrastructure.security.jwt.JwtProvider;
 import atmin.repository.RefreshTokenRepository;
@@ -24,6 +28,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +45,7 @@ public class AuthService implements IAuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProvider jwtProvider;
     private final JwtProperties jwtProperties;
+    private final TokenBlacklistRepository tokenBlacklistRepository;
 
     @Override
     public ResponseEntity<ApiResponse<Void>> register(RegisterRequest request) {
@@ -142,5 +148,34 @@ public class AuthService implements IAuthService {
                 new AuthResponse(newAccessToken, newRefreshToken));
 
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Void>> logout(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new JwtException("Full authentication is required to access this resource");
+        }
+
+        String token = authHeader.substring(7);
+        jwtProvider.validateAccessToken(token);
+
+        String username = jwtProvider.getUsernameFromToken(token);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found for this token: " + username));
+
+        Date expirationDate = jwtProvider.getExpirationDateFromToken(token);
+        LocalDateTime expiryTime = expirationDate.toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
+
+        TokenBlacklist blacklist = TokenBlacklist.builder()
+                .token(token)
+                .expiryTime(expiryTime)
+                .user(user)
+                .build();
+        tokenBlacklistRepository.save(blacklist);
+
+        return new ResponseEntity<>(ApiResponse.success("Logout successfully!"), HttpStatus.OK);
     }
 }

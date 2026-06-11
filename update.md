@@ -1,8 +1,8 @@
 # Nhật Ký Cập Nhật Hệ Thống (Update Log)
 
-## 📌 [Cập nhật ngày 12/06/2026] - Tối ưu hóa truy vấn đặt sân, xử lý gọi đối tượng chồng chéo
+## 📌 [Cập nhật ngày 12/06/2026] - Tối ưu hóa truy vấn, dọn dẹp token và tính năng Đăng xuất (Blacklisting)
 
-Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên quan đến Booking nhằm khắc phục tình trạng tải các thực thể chồng chéo ("chồng chéo đối tượng") và loại bỏ hoàn toàn lỗi N+1 Query:
+Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên quan đến Booking, sửa đổi cơ chế scheduler dọn dẹp token, tích hợp file cấu hình môi trường, triển khai nghiệp vụ Đăng xuất (Blacklisting) và tính năng Phê duyệt / Từ chối lịch (FR-08):
 
 ### 1. Áp dụng Constructor Projection trong BookingRepository
 *   **File chỉnh sửa:** [BookingRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/BookingRepository.java)
@@ -26,6 +26,29 @@ Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên qua
     *   Xây dựng phương thức `loadDotenv()` trong `Application.java` để đọc và phân tích file `.env` tại thời điểm khởi chạy, nạp động các biến môi trường thành System Properties.
     *   Chuyển giá trị của `jwt.secret-key` từ `application.properties` sang biến `JWT_SECRET_KEY` trong file `.env`.
     *   Thay thế bằng placeholder `jwt.secret-key=${JWT_SECRET_KEY}` trong `application.properties` để Spring Boot tự động nhận diện giá trị tương ứng.
+
+### 5. Triển khai chức năng Đăng xuất & Thu hồi Token - Blacklisting (UC-03 / FR-03)
+*   **Các file chỉnh sửa/thêm mới:** [TokenBlacklistRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/TokenBlacklistRepository.java) [NEW], [JwtProvider.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtProvider.java), [IAuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IAuthService.java), [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java), [AuthController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/auth/AuthController.java), [JwtAuthenticationFilter.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtAuthenticationFilter.java)
+*   **Chi tiết:**
+    *   Xây dựng kho lưu trữ `TokenBlacklistRepository` tương tác với bảng `token_blacklists`.
+    *   Hỗ trợ trích xuất thời gian hết hạn (`Expiration`) trong `JwtProvider`.
+    *   Triển khai dịch vụ `logout` trong `AuthService` thực hiện giải mã token, kiểm tra tính hợp lệ, tính toán thời điểm hết hạn còn lại và lưu vào danh sách đen `token_blacklists`.
+    *   Thêm endpoint POST `/api/v1/auth/logout` trong `AuthController` đính kèm header `Authorization`.
+    *   Tích hợp kiểm tra danh sách đen trong `JwtAuthenticationFilter`. Nếu một token đã đăng xuất được gửi lên, filter lập tức chặn lại và trả về lỗi `403 Forbidden` cùng JSON phản hồi lỗi chuẩn.
+    *   Cấu hình `JwtAuthenticationFilter` tự động chặn và trả về mã lỗi `401 Unauthorized` chứa thông điệp cụ thể của ngoại lệ `JwtException` (ví dụ: `"Token has expired"` khi hết hạn) thay vì bỏ qua để Spring Security ném ra thông báo mặc định `"Full authentication is required..."`. Cách này giúp Client/Frontend nhận diện chính xác lỗi hết hạn để kích hoạt luồng Refresh Token.
+
+### 6. Triển khai tính năng Phê duyệt / Từ chối lịch đặt sân (UC-08 / FR-08)
+*   **Các file chỉnh sửa/thêm mới:** [BookingManagerController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/booking/BookingManagerController.java) [NEW], [BookingStatusUpdateRequest.java](file:///d:/IT211/Me/src/main/java/atmin/controller/booking/dto/request/BookingStatusUpdateRequest.java) [NEW], [IBookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IBookingService.java), [BookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/BookingService.java), [BookingRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/BookingRepository.java), [SecurityConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/SecurityConfig.java)
+*   **Chi tiết:**
+    *   Xây dựng DTO `BookingStatusUpdateRequest` với các ràng buộc kiểm tra hợp lệ (`@NotBlank`, `@Pattern` chỉ chấp nhận `CONFIRMED` hoặc `REJECTED`).
+    *   Tạo controller `BookingManagerController` với các API dành riêng cho Manager/Admin tại `/api/v1/manager/bookings`:
+        *   `GET` để truy vấn danh sách đặt sân có hỗ trợ phân trang và lọc theo trạng thái (`status`).
+        *   `PUT /{id}` để cập nhật trạng thái đơn đặt lịch.
+    *   Thực hiện triển khai các phương thức nghiệp vụ trong `BookingService`:
+        *   `getBookings`: Lấy danh sách booking từ repo theo trạng thái.
+        *   `updateBookingStatus`: Kiểm tra booking có tồn tại không, nếu trạng thái hiện tại khác `PENDING` thì ném lỗi `DuplicateResourceException` (409 Conflict), ngược lại cập nhật và lưu trạng thái mới.
+    *   Khai báo phương thức truy vấn `findBookingsByStatus` sử dụng Constructor Projection trong `BookingRepository`.
+    *   Cấu hình phân quyền trong `SecurityConfig` cho phép các vai trò `ROLE_MANAGER` và `ROLE_ADMIN` được quyền truy cập vào đường dẫn `/api/v1/manager/bookings/**`.
 
 ---
 

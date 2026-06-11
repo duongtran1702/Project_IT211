@@ -90,4 +90,28 @@ public class BookingService implements IBookingService {
 
         return bookingRepository.findBookingsByUser(user, pageable);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BookingResponse> getBookings(String status, Pageable pageable) {
+        String statusFilter = (status == null || status.trim().isEmpty()) ? null : status.trim().toUpperCase();
+        return bookingRepository.findBookingsByStatus(statusFilter, pageable);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse updateBookingStatus(Long id, String status) {
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with ID: " + id));
+
+        if (!"PENDING".equalsIgnoreCase(booking.getStatus())) {
+            throw new DuplicateResourceException("This booking has already been processed and is currently: " + booking.getStatus());
+        }
+
+        booking.setStatus(status.toUpperCase());
+        bookingRepository.save(booking);
+
+        return bookingRepository.findResponseById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking response not found with ID: " + id));
+    }
 }

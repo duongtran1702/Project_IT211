@@ -34,6 +34,17 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "WHERE b.id = :id")
     Optional<BookingResponse> findResponseById(@Param("id") Long id);
 
+    @Query("SELECT new atmin.controller.booking.dto.response.BookingResponse(" +
+           "b.id, b.bookingDate, b.timeSlot, b.totalPrice, b.status, " +
+           "c.courtName, cl.name, u.fullName) " +
+           "FROM Booking b " +
+           "JOIN b.court c " +
+           "JOIN c.cluster cl " +
+           "JOIN b.user u " +
+           "WHERE (:status IS NULL OR b.status = :status) " +
+           "AND b.isDeleted = false")
+    Page<BookingResponse> findBookingsByStatus(@Param("status") String status, Pageable pageable);
+
     @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.court = :court " +
            "AND b.bookingDate = :bookingDate " +
            "AND b.timeSlot = :timeSlot " +

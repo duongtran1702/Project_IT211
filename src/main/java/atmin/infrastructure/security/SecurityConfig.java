@@ -71,12 +71,13 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/v1/auth/**", "/atmin/v1/auth/**", "/error").permitAll()
                     .requestMatchers("/api/v1/admin/**").hasAuthority("ROLE_ADMIN")
+                    .requestMatchers("/api/v1/manager/bookings/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_ADMIN")
                     .requestMatchers("/api/v1/manager/**").hasAuthority("ROLE_MANAGER")
                     .requestMatchers("/api/v1/customer/**").hasAuthority("ROLE_CUSTOMER")
                     .anyRequest().authenticated())

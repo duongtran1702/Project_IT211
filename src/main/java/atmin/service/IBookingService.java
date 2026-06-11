@@ -8,4 +8,6 @@ import org.springframework.data.domain.Pageable;
 public interface IBookingService {
     BookingResponse createBooking(BookingRequest request);
     Page<BookingResponse> getBookingHistory(Pageable pageable);
+    Page<BookingResponse> getBookings(String status, Pageable pageable);
+    BookingResponse updateBookingStatus(Long id, String status);
 }

@@ -100,4 +100,8 @@ public class JwtProvider {
         return extractClaimsJws(token).get("roles", List.class);
     }
 
+    public Date getExpirationDateFromToken(String token) {
+        return extractClaimsJws(token).getExpiration();
+    }
+
 }
