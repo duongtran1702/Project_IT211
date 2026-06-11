@@ -46,18 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     }
 
             } catch (JwtException e) {
-                ApiErrorResponse errorResponse = ApiErrorResponse.builder()
-                        .timestamp(java.time.LocalDateTime.now())
-                        .status(org.springframework.http.HttpStatus.UNAUTHORIZED.value())
-                        .error(org.springframework.http.HttpStatus.UNAUTHORIZED.getReasonPhrase())
-                        .message(e.getMessage()) // Trả về "Token has expired", v.v.
-                        .path(request.getRequestURI())
-                        .build();
-
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
-                return;
+                logger.warn("JWT validation failed: " + e.getMessage());
             }
         }
         filterChain.doFilter(request,response);

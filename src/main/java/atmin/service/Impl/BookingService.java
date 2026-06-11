@@ -77,7 +77,8 @@ public class BookingService implements IBookingService {
 
         Booking savedBooking = bookingRepository.save(booking);
 
-        return BookingResponse.fromEntity(savedBooking);
+        return bookingRepository.findResponseById(savedBooking.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found after creation: " + savedBooking.getId()));
     }
 
     @Override
@@ -87,7 +88,6 @@ public class BookingService implements IBookingService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Logged in user not found: " + username));
 
-        Page<Booking> bookings = bookingRepository.findByUserActive(user, pageable);
-        return bookings.map(BookingResponse::fromEntity);
+        return bookingRepository.findBookingsByUser(user, pageable);
     }
 }

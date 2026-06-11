@@ -1,14 +1,58 @@
-# Hướng Dẫn Khởi Tạo Dữ Liệu Mẫu (Database Initialization)
+# 🏸 Hướng Dẫn Khởi Tạo Dữ Liệu Mẫu (Database Initialization)
 
 Tài liệu này cung cấp các câu lệnh SQL để khởi tạo dữ liệu mẫu cho hệ thống đặt sân cầu lông. Bản SQL này được tối ưu hóa cho cơ sở dữ liệu **MySQL** (`project_it211_me`).
 
-> [!IMPORTANT]
-> - Mật khẩu mẫu mặc định cho tất cả các tài khoản (`admin`, `manager_test`, `customer_test`) sau khi mã hóa BCrypt là: **`password123`**
-> - Hãy chạy các câu lệnh SQL này theo đúng thứ tự để tránh lỗi ràng buộc khóa ngoại (Foreign Key Constraint).
+---
+
+## ⚙️ Cấu Hình Kết Nối (Connection Configurations)
+
+Dưới đây là thông số kết nối cơ sở dữ liệu được cấu hình mặc định trong file [application.properties](file:///d:/IT211/Me/src/main/resources/application.properties):
+
+| Tham số              | Giá trị cấu hình                               | Mô tả                                             |
+|:---------------------|:-----------------------------------------------|:--------------------------------------------------|
+| **Hệ quản trị CSDL** | MySQL                                          | Hệ quản trị cơ sở dữ liệu sử dụng                 |
+| **JDBC URL**         | `jdbc:mysql://localhost:3306/project_it211_me` | URL kết nối database (tự động tạo DB nếu chưa có) |
+| **Username**         | `root`                                         | Tài khoản quản trị cơ sở dữ liệu                  |
+| **Password**         | `Duong170226@`                                 | Mật khẩu kết nối CSDL hiện tại                    |
+
+---
+
+## 👥 Tài Khoản Thử Nghiệm Mặc Định (Default Test Accounts)
+
+Tất cả các tài khoản thử nghiệm dưới đây đều sử dụng mật khẩu chung sau khi mã hóa BCrypt là: **`password123`** (chuỗi mã hóa: `$2a$10$8.UnVuG9HHgffUDAlk8GP.3nSXZ4d4E24p.K/Wj5xU9zM2fIeOq2O`).
+
+| Username        | Tên đầy đủ           | Vai trò (Role)  | Chức năng chính                            |
+|:----------------|:---------------------|:----------------|:-------------------------------------------|
+| `admin`         | System Administrator | `ROLE_ADMIN`    | Quản trị viên hệ thống, quản lý người dùng |
+| `manager_test`  | Nguyen Van Manager   | `ROLE_MANAGER`  | Quản lý cụm sân, quản lý lịch đặt          |
+| `customer_test` | Tran Tri Customer    | `ROLE_CUSTOMER` | Khách hàng đăng nhập, đặt sân              |
+
+---
+
+## 🗺️ Thứ Tự Khởi Tạo Dữ Liệu (Data Insertion Order)
+
+Để tránh lỗi ràng buộc khóa ngoại (Foreign Key Constraint), các câu lệnh SQL phải được thực thi theo trình tự hợp lý dưới đây:
+
+```mermaid
+graph TD
+    roles["1. roles (Vai trò)"] --> user_role["3. user_role (Gán vai trò)"]
+    users["2. users (Người dùng)"] --> user_role
+    users --> badminton_clusters["4. badminton_clusters (Cụm sân)"]
+    badminton_clusters --> courts["5. courts (Sân chi tiết)"]
+    time_slots["6. time_slots (Khung giờ)"] --> bookings["7. bookings (Đơn đặt)"]
+    courts --> bookings
+    users --> bookings
+```
 
 ---
 
 ## 📝 Script SQL Khởi Tạo Dữ Liệu
+
+> [!IMPORTANT]
+> - Hãy đảm bảo bạn đã khởi động MySQL Server trước khi thực thi script.
+> - Chạy các câu lệnh SQL này theo đúng thứ tự để đảm bảo tính toàn vẹn dữ liệu.
+
+Nội dung SQL dưới đây được đồng bộ với file [Query.sql](file:///d:/IT211/Me/Query.sql) nằm ở thư mục gốc của dự án:
 
 ```sql
 -- Sử dụng cơ sở dữ liệu của dự án
@@ -24,7 +68,6 @@ INSERT INTO `roles` (`id`, `role_name`, `description`) VALUES
 
 -- =========================================================================
 -- 2. KHỞI TẠO TÀI KHOẢN NGƯỜI DÙNG (users)
--- BCrypt băm của 'password123' là: $2a$10$8.UnVuG9HHgffUDAlk8GP.3nSXZ4d4E24p.K/Wj5xU9zM2fIeOq2O
 -- =========================================================================
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `phone_number`, `is_enabled`, `created_at`) VALUES
 (1, 'admin', '$2a$10$8.UnVuG9HHgffUDAlk8GP.3nSXZ4d4E24p.K/Wj5xU9zM2fIeOq2O', 'System Administrator', 'admin@example.com', '0912345678', 1, NOW()),
@@ -78,15 +121,16 @@ INSERT INTO `bookings` (`id`, `booking_date`, `time_slot`, `total_price`, `statu
 
 Bạn có thể áp dụng script SQL trên qua 2 cách phổ biến sau:
 
-### Cách 1: Sử dụng Công Cụ Quản Trị CSDL (MySQL Workbench, DBeaver, Navicat...)
-1. Kết nối với MySQL server cục bộ của bạn.
-2. Mở một Tab SQL Query mới.
-3. Sao chép toàn bộ nội dung script trên dán vào tab query.
-4. Nhấn nút **Execute** (hoặc tổ hợp phím `Ctrl + Shift + Enter`) để thực thi.
+### Cách 1: Sử dụng công cụ Quản trị CSDL trực quan (DBeaver, MySQL Workbench, Navicat...)
+1. Kết nối với MySQL Server cục bộ của bạn.
+2. Đảm bảo database `project_it211_me` đã được tạo thành công bởi Hibernate/Spring Boot.
+3. Mở một tab **SQL Editor** mới hoặc mở trực tiếp tệp tin [Query.sql](file:///d:/IT211/Me/Query.sql).
+4. Sao chép nội dung script SQL ở trên dán vào tab query.
+5. Nhấp vào nút **Execute All Queries** (hoặc nhấn tổ hợp phím `Ctrl + Alt + X` hoặc `Ctrl + Shift + Enter`) để thực thi.
 
-### Cách 2: Thực thi qua Command Line Interface (CLI)
-Mở cửa sổ Command Prompt hoặc PowerShell và chạy câu lệnh sau:
+### Cách 2: Thực thi qua Giao diện Dòng lệnh (CLI)
+Mở Terminal, Command Prompt hoặc PowerShell tại thư mục gốc của dự án và chạy câu lệnh sau:
 ```bash
-mysql -u root -p project_it211_me < init.sql
+mysql -u root -p project_it211_me < Query.sql
 ```
-*(Thay thế `init.sql` bằng file chứa script SQL trên).*
+*(Hệ thống sẽ yêu cầu bạn nhập mật khẩu MySQL của tài khoản root để thực thi).*

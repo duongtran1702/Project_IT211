@@ -1,8 +1,72 @@
 # Nhật Ký Cập Nhật Hệ Thống (Update Log)
 
-Tài liệu này ghi nhận các thực thể JPA mới, ngoại lệ tùy chỉnh liên quan đến Cloudinary, và tính năng Quản lý người dùng vừa được tích hợp vào dự án dựa trên sơ đồ ERD và tài liệu đặc tả yêu cầu hệ thống (SRS).
+## 📌 [Cập nhật ngày 12/06/2026] - Tối ưu hóa truy vấn đặt sân, xử lý gọi đối tượng chồng chéo
+
+Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên quan đến Booking nhằm khắc phục tình trạng tải các thực thể chồng chéo ("chồng chéo đối tượng") và loại bỏ hoàn toàn lỗi N+1 Query:
+
+### 1. Áp dụng Constructor Projection trong BookingRepository
+*   **File chỉnh sửa:** [BookingRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/BookingRepository.java)
+*   **Chi tiết:** Thay đổi câu truy vấn `findBookingsByUser` và bổ sung `findResponseById` để sử dụng cấu trúc `SELECT new atmin.controller.booking.dto.response.BookingResponse(...)`. Giải pháp này giúp chỉ lấy chính xác các cột cần thiết từ Database (`b.id`, `b.bookingDate`, `b.timeSlot`, `b.totalPrice`, `b.status`, `c.courtName`, `cl.name`, `u.fullName`) và tự động khởi tạo trực tiếp DTO `BookingResponse`. Nhờ đó, tránh tải toàn bộ thực thể cồng kềnh như `User` (với eager roles) hay `Court`, `BadmintonCluster`.
+
+### 2. Loại bỏ bước mapping thủ công trong BookingService
+*   **File chỉnh sửa:** [BookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/BookingService.java)
+*   **Chi tiết:**
+    *   Trong phương thức `getBookingHistory`, trả về trực tiếp `Page<BookingResponse>` nhận được từ repository thay vì map thủ công trong bộ nhớ (giúp triệt tiêu hoàn toàn lỗi N+1 SQL queries khi tải danh sách lịch sử booking).
+    *   Trong phương thức `createBooking`, sau khi lưu booking mới thành công, tiến hành truy vấn lại bằng phương thức chiếu `findResponseById` để trả về phản hồi tối ưu nhất cho Client.
+
+### 3. Cấu hình tự động dọn dẹp Refresh Token hết hạn vào 12h đêm hàng ngày
+*   **File chỉnh sửa:** [RefreshTokenCleanupScheduler.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/scheduler/RefreshTokenCleanupScheduler.java) & [Application.java](file:///d:/IT211/Me/src/main/java/atmin/Application.java)
+*   **Chi tiết:**
+    *   Cập nhật biểu thức cron trong `@Scheduled` của `RefreshTokenCleanupScheduler` từ `"0 0 2 * * ?"` (2h sáng) sang `"0 0 0 * * ?"` để hệ thống tự động quét và xóa sạch các token hết hạn vào lúc 12h đêm (00:00) hàng ngày.
+    *   Bổ sung annotation `@EnableScheduling` trong `Application.java` để kích hoạt tính năng thực thi tác vụ định kỳ của Spring Boot.
+
+### 4. Chuyển cấu hình JWT Secret Key sang file `.env`
+*   **File chỉnh sửa:** [Application.java](file:///d:/IT211/Me/src/main/java/atmin/Application.java), [application.properties](file:///d:/IT211/Me/src/main/resources/application.properties), [.env](file:///d:/IT211/Me/.env)
+*   **Chi tiết:**
+    *   Xây dựng phương thức `loadDotenv()` trong `Application.java` để đọc và phân tích file `.env` tại thời điểm khởi chạy, nạp động các biến môi trường thành System Properties.
+    *   Chuyển giá trị của `jwt.secret-key` từ `application.properties` sang biến `JWT_SECRET_KEY` trong file `.env`.
+    *   Thay thế bằng placeholder `jwt.secret-key=${JWT_SECRET_KEY}` trong `application.properties` để Spring Boot tự động nhận diện giá trị tương ứng.
 
 ---
+
+## 📌 [Cập nhật ngày 11/06/2026] - Sửa lỗi bảo mật, xác thực & phân quyền (FR-04 & FR-05)
+
+Hệ thống đã được cập nhật sửa đổi các lỗi bảo mật và tối ưu hóa luồng xử lý ngoại lệ liên quan đến cơ chế đăng nhập (FR-04) và quản lý phân quyền token (FR-05) theo đúng đặc tả SRS:
+
+### 1. Đồng nhất lỗi đăng nhập sai tài khoản/mật khẩu
+*   **File chỉnh sửa:** [GlobalExceptionHandler.java](file:///d:/IT211/Me/src/main/java/atmin/common/exception/GlobalExceptionHandler.java)
+*   **Nguyên nhân lỗi cũ:** Khi xác thực thông tin đăng nhập thất bại, `AuthenticationManager` ném ra `BadCredentialsException` (kế thừa từ `AuthenticationException`). Do thiếu bộ xử lý cụ thể, lỗi này bị đẩy vào bộ bắt lỗi chung `RuntimeException` dẫn tới phản hồi mã lỗi `500 Internal Server Error` không chuẩn xác.
+*   **Giải pháp xử lý:** Thêm `@ExceptionHandler(AuthenticationException.class)` nhằm bắt trực tiếp các lỗi liên quan đến thông tin xác thực và trả về JSON chuẩn mã `401 Unauthorized` cùng nội dung mô tả lỗi cụ thể của Spring Security (ví dụ: `"Bad credentials"`).
+
+### 2. Chuẩn hóa luồng xác thực Token khi gặp lỗi Token không hợp lệ
+*   **File chỉnh sửa:** [JwtAuthenticationFilter.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtAuthenticationFilter.java)
+*   **Nguyên nhân lỗi cũ:** Khi nhận được token sai cấu trúc hoặc chữ ký không khớp (`JwtException`), bộ lọc tự động ngắt chuỗi Filter và ghi phản hồi lỗi trực tiếp chứa thông điệp kỹ thuật (ví dụ: `"Signature or structure not valid"`). Điều này không đúng với mong muốn hệ thống là trả về thông điệp bảo mật đồng nhất cho các request không hợp lệ.
+*   **Giải pháp xử lý:** Sửa luồng xử lý trong khối `catch (JwtException e)` chỉ ghi nhận log cảnh báo và cho phép luồng tiếp tục di chuyển qua các Filter tiếp theo mà không thiết lập thông tin xác thực (`SecurityContext` để trống). Spring Security sẽ nhận diện đây là một request chưa được xác thực và chuyển giao việc phản hồi cho `AuthenticationEntryPoint` xử lý đồng nhất.
+
+### 3. Cấu hình Custom Entry Point và Access Denied Handler
+*   **File chỉnh sửa:** [SecurityConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/SecurityConfig.java)
+*   **Nguyên nhân lỗi cũ:** Chưa khai báo các bộ xử lý phản hồi lỗi bảo mật tùy chỉnh cho các trường hợp không có quyền truy cập hoặc chưa đăng nhập, dẫn đến việc Spring Security trả về phản hồi mặc định (hoặc phản hồi rỗng).
+*   **Giải pháp xử lý:** Tiêm `ObjectMapper` và xây dựng cấu hình tùy chỉnh:
+    *   **Custom AuthenticationEntryPoint:** Trả về JSON lỗi `401 Unauthorized` có message `"Full authentication is required to access this resource"` cho mọi trường hợp chưa được xác thực (không đính token hoặc token lỗi).
+    *   **Custom AccessDeniedHandler:** Trả về JSON lỗi `403 Forbidden` có message `"Access Denied"` khi người dùng có token hợp lệ nhưng vai trò không đủ quyền truy cập (ví dụ: Customer cố ý gọi API của Admin).
+    *   Đăng ký trực tiếp trong cấu hình `.exceptionHandling()` của `SecurityFilterChain`.
+
+### 4. Điều chỉnh chỉ số phân trang (Pagination Index) thành 1-based cho phía Client
+*   **File chỉnh sửa:** [AdminController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/admin/AdminController.java)
+*   **Nguyên nhân lỗi cũ:** Spring Data JPA mặc định sử dụng phân trang bắt đầu từ `0` (0-indexed). Khi Client truyền tham số `page=1` để lấy trang đầu tiên, hệ thống hiểu là lấy trang thứ hai (trang này bị trống dữ liệu nếu tổng số bản ghi nhỏ hơn hoặc bằng kích thước trang), tạo cảm giác như hệ thống không lấy được dữ liệu trong DB.
+*   **Giải pháp xử lý:** Thay đổi default value của tham số `page` thành `"1"` và thực hiện trừ đi 1 đơn vị (`page - 1`) trước khi khởi tạo `Pageable` để ánh xạ chính xác về chỉ số 0-indexed của JPA.
+
+### 5. Xử lý lỗi sai định dạng tham số (Parameter Type Mismatch) thành 400 thay vì 500
+*   **File chỉnh sửa:** [GlobalExceptionHandler.java](file:///d:/IT211/Me/src/main/java/atmin/common/exception/GlobalExceptionHandler.java)
+*   **Nguyên nhân lỗi cũ:** Khi người dùng truyền sai kiểu dữ liệu của tham số (ví dụ: `size=abc` hoặc `id=abc`), Spring Boot ném ngoại lệ `MethodArgumentTypeMismatchException`. Ngoại lệ này chưa được xử lý cục bộ nên bị bắt bởi handler `RuntimeException` dẫn tới mã lỗi 500.
+*   **Giải pháp xử lý:** Khai báo phương thức xử lý lỗi `@ExceptionHandler(MethodArgumentTypeMismatchException.class)` để bắt lỗi chuyển đổi kiểu dữ liệu và trả về mã lỗi `400 Bad Request` cùng thông điệp rõ ràng: `"Failed to convert value of type 'java.lang.String' to required type 'int' for parameter 'page' / 'size'"`.
+
+### 6. Cho phép chuyển tiếp tới Endpoint `/error` (Lỗi 401 khi tạo/cập nhật người dùng)
+*   **File chỉnh sửa:** [SecurityConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/SecurityConfig.java)
+*   **Nguyên nhân lỗi cũ:** Khi có bất kỳ lỗi không mong muốn hoặc lỗi kiểm tra dữ liệu xảy ra trong Controller, Spring Boot chuyển tiếp (forward) yêu cầu sang `/error`. Vì `/error` không được cấu hình cho phép truy cập công khai trong Spring Security, request này bị chặn và trả về lỗi `401 Unauthorized` kèm message `"Full authentication is required..."` che khuất lỗi thực tế.
+*   **Giải pháp xử lý:** Bổ sung đường dẫn `"/error"` vào danh sách `.permitAll()` trong cấu hình bảo mật `SecurityFilterChain`, giúp các lỗi thực tế (như kiểm tra hợp lệ hoặc lỗi DB) được trả ra bình thường cho Client kiểm tra.
+
+Tài liệu này ghi nhận các thực thể JPA mới, ngoại lệ tùy chỉnh liên quan đến Cloudinary, và tính năng Quản lý người dùng vừa được tích hợp vào dự án dựa trên sơ đồ ERD và tài liệu đặc tả yêu cầu hệ thống (SRS).
 
 ## 📂 Các File Đã Thêm Mới & Chỉnh Sửa
 

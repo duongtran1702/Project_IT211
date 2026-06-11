@@ -28,7 +28,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +49,10 @@ public class AuthService implements IAuthService {
 
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new DuplicateResourceException("Email already exists!");
+        }
+
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new DuplicateResourceException("Phone number already exists!");
         }
 
         Role roleUser = roleRepository.findByName("ROLE_CUSTOMER")
@@ -123,10 +126,14 @@ public class AuthService implements IAuthService {
         tokenEntity.setRevoked(true);
         refreshTokenRepository.save(tokenEntity);
 
+        // Tránh bị tràn
+        LocalDateTime expiryDateTime = LocalDateTime.now()
+                .plus(jwtProperties.getRefreshExpiration(), ChronoUnit.MILLIS);
+
         RefreshToken newRefreshEntity = RefreshToken.builder()
                 .token(newRefreshToken)
                 .user(user)
-                .expiredAt(LocalDateTime.now().plusNanos(jwtProperties.getRefreshExpiration() * 1_000_000L))
+                .expiredAt(expiryDateTime)
                 .isRevoked(false)
                 .build();
         refreshTokenRepository.save(newRefreshEntity);

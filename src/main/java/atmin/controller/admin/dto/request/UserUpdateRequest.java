@@ -26,7 +26,7 @@ public class UserUpdateRequest {
     @Pattern(regexp = "^\\d{10}$", message = "Phone number must be exactly 10 numeric digits")
     private String phoneNumber;
 
-    private boolean isEnabled;
+    private Boolean isEnabled;
 
     private Set<Long> roleIds;
 }

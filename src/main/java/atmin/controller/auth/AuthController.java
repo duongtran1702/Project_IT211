@@ -2,6 +2,7 @@ package atmin.controller.auth;
 
 import atmin.common.response.ApiResponse;
 import atmin.controller.auth.dto.request.LoginRequest;
+import atmin.controller.auth.dto.request.RefreshTokenRequest;
 import atmin.controller.auth.dto.request.RegisterRequest;
 import atmin.controller.auth.dto.response.AuthResponse;
 import atmin.service.IAuthService;
@@ -27,7 +28,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@RequestParam String refreshToken) {
-        return authService.refreshToken(refreshToken);
+    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        return authService.refreshToken(request.getRefreshToken());
     }
 }

@@ -2,6 +2,8 @@ package atmin.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.jspecify.annotations.NullMarked;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -21,7 +23,9 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class User implements UserDetails {
+@SQLDelete(sql = "update users set is_deleted = true, updated_at = NOW(), is_enabled = false where id = ?")
+@SQLRestriction("is_deleted = false")
+public class User extends BaseEntity implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -45,9 +49,6 @@ public class User implements UserDetails {
     )
     @ManyToMany(fetch = FetchType.EAGER)
     private Set<Role> roles;
-
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
 
     @Transient
     private Collection<? extends GrantedAuthority> authorities;
@@ -90,6 +91,6 @@ public class User implements UserDetails {
     @Override
     @NullMarked
     public boolean isEnabled() {
-        return this.isEnabled;
+        return this.isEnabled && !this.isDeleted();
     }
 }

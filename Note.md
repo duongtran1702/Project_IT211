@@ -29,3 +29,6 @@ Cả 4 hàm này đều là các **chốt chặn bảo mật (Security Checkpoin
 ### Vai trò của Annotation `@NullMarked`
 * Thẻ `@NullMarked` đặt ở phạm vi hàm đóng vai trò như một bản cam kết kỹ thuật chặt chẽ với trình biên dịch Java.
 * Nó khẳng định rằng các hàm kiểm tra trạng thái này bắt buộc phải trả về giá trị logic rõ ràng (`true` hoặc `false`), **tuyệt đối không được phép trả về giá trị trống (`null`)** trong mọi tình huống vận hành, giúp hệ thống phòng ngừa hoàn toàn các lỗi sập luồng (NullPointerException).
+
+#### Check trùng phone
+#### Dùng token cũ vẫn được

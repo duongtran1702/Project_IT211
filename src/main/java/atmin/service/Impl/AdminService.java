@@ -54,6 +54,10 @@ public class AdminService implements IAdminService {
             throw new DuplicateResourceException("Email already exists!");
         }
 
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new DuplicateResourceException("Phone number already exists!");
+        }
+
         Set<Role> roles = new HashSet<>();
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
             List<Role> foundRoles = roleRepository.findAllById(request.getRoleIds());
@@ -79,10 +83,14 @@ public class AdminService implements IAdminService {
             throw new DuplicateResourceException("Email already exists!");
         }
 
+        if (!user.getPhoneNumber().equals(request.getPhoneNumber()) && userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new DuplicateResourceException("Phone number already exists!");
+        }
+
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhoneNumber(request.getPhoneNumber());
-        user.setEnabled(request.isEnabled());
+        user.setEnabled(request.getIsEnabled());
 
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
             List<Role> foundRoles = roleRepository.findAllById(request.getRoleIds());
