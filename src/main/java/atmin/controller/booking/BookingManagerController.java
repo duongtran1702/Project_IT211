@@ -14,13 +14,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/manager/bookings")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class BookingManagerController {
 
     private final IBookingService bookingService;
 
-    @GetMapping
+    @GetMapping({"/manager/bookings", "/admin/bookings"})
     public ResponseEntity<ApiResponse<Page<BookingResponse>>> getBookings(
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,
@@ -30,7 +30,7 @@ public class BookingManagerController {
         return ResponseEntity.ok(ApiResponse.success("Bookings retrieved successfully", bookings));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping({"/manager/bookings/{id}", "/admin/bookings/{id}"})
     public ResponseEntity<ApiResponse<BookingResponse>> updateBookingStatus(
             @PathVariable Long id,
             @Valid @RequestBody BookingStatusUpdateRequest request) {

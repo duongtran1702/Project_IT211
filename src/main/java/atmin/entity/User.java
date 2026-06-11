@@ -42,6 +42,13 @@ public class User extends BaseEntity implements UserDetails {
     @Column(name = "is_enabled")
     private boolean isEnabled = true;
 
+    @Column(name = "reset_token")
+    private String resetToken;
+
+    @Column(name = "reset_token_expiry")
+    private LocalDateTime resetTokenExpiry;
+
+
     @JoinTable(
             name = "user_role",
             joinColumns = @JoinColumn(name = "user_id"),

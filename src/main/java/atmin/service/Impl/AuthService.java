@@ -11,6 +11,11 @@ import atmin.entity.Role;
 import atmin.entity.User;
 import atmin.entity.TokenBlacklist;
 import atmin.repository.TokenBlacklistRepository;
+import atmin.controller.auth.dto.request.ChangePasswordRequest;
+import atmin.controller.auth.dto.request.ForgotPasswordRequest;
+import atmin.controller.auth.dto.request.ResetPasswordRequest;
+import atmin.service.IEmailService;
+import java.util.UUID;
 import java.time.ZoneId;
 import java.util.Date;
 import atmin.infrastructure.security.jwt.JwtProperties;
@@ -46,6 +51,7 @@ public class AuthService implements IAuthService {
     private final JwtProvider jwtProvider;
     private final JwtProperties jwtProperties;
     private final TokenBlacklistRepository tokenBlacklistRepository;
+    private final IEmailService emailService;
 
     @Override
     public ResponseEntity<ApiResponse<Void>> register(RegisterRequest request) {
@@ -177,5 +183,78 @@ public class AuthService implements IAuthService {
         tokenBlacklistRepository.save(blacklist);
 
         return new ResponseEntity<>(ApiResponse.success("Logout successfully!"), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Void>> changePassword(String username, ChangePasswordRequest request) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Old password does not match!");
+        }
+
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("New password and confirm password do not match!");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // Thu hồi tất cả Refresh Token cũ của User để bắt đăng nhập lại
+        List<RefreshToken> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
+        if (activeTokens != null && !activeTokens.isEmpty()) {
+            activeTokens.forEach(t -> t.setRevoked(true));
+            refreshTokenRepository.saveAll(activeTokens);
+        }
+
+        return new ResponseEntity<>(ApiResponse.success("Password changed successfully!"), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(ForgotPasswordRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("Email does not exist!"));
+
+        String token = UUID.randomUUID().toString();
+        user.setResetToken(token);
+        user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(10));
+        userRepository.save(user);
+
+        emailService.sendResetPasswordEmail(user.getEmail(), token);
+
+        ApiResponse<Void> response = ApiResponse.success("Password reset email sent successfully. Please check your inbox.");
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Void>> resetPassword(ResetPasswordRequest request) {
+        User user = userRepository.findByResetToken(request.getToken())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token!"));
+
+        if (user.getResetTokenExpiry().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Invalid or expired reset token!");
+        }
+
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("New password and confirm password do not match!");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setResetToken(null);
+        user.setResetTokenExpiry(null);
+        userRepository.save(user);
+
+        // Thu hồi tất cả Refresh Token cũ
+        List<RefreshToken> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
+        if (activeTokens != null && !activeTokens.isEmpty()) {
+            activeTokens.forEach(t -> t.setRevoked(true));
+            refreshTokenRepository.saveAll(activeTokens);
+        }
+
+        return new ResponseEntity<>(ApiResponse.success("Password reset successfully!"), HttpStatus.OK);
     }
 }

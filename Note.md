@@ -32,3 +32,17 @@ Cả 4 hàm này đều là các **chốt chặn bảo mật (Security Checkpoin
 
 #### Check trùng phone
 #### Dùng token cũ vẫn được
+
+---
+
+### 📌 UC-02: Quản trị danh mục và Xử lý dữ liệu nâng cao (Báo cáo doanh thu & Tổng hợp khung giờ) - CẦN LÀM SAU
+- **Tác nhân**: `ROLE_ADMIN` hoặc `ROLE_MANAGER`.
+- **Nghiệp vụ**:
+  - GET danh sách tổng hợp các khung giờ đặt sân hoặc báo cáo doanh thu theo tháng.
+  - Hỗ trợ các bộ lọc (ví dụ: `date=2026-06-08`, `status=CONFIRMED`).
+- **Yêu cầu kỹ thuật bắt buộc**:
+  - Tại tầng Service, tuyệt đối không dùng vòng lặp `for` hay `while` truyền thống.
+  - Phải áp dụng Java Stream API: `.stream()`, `.filter()`, `.map()`, và `.collect(Collectors.toList())`.
+  - Trả về danh sách DTO sạch (tránh liên kết đệ quy vô hạn và loại bỏ các trường thừa).
+---
+### 📌 Sao upload ảnh lại cho customer thay vì admin

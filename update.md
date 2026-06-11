@@ -2,7 +2,7 @@
 
 ## 📌 [Cập nhật ngày 12/06/2026] - Tối ưu hóa truy vấn, dọn dẹp token và tính năng Đăng xuất (Blacklisting)
 
-Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên quan đến Booking, sửa đổi cơ chế scheduler dọn dẹp token, tích hợp file cấu hình môi trường, triển khai nghiệp vụ Đăng xuất (Blacklisting) và tính năng Phê duyệt / Từ chối lịch (FR-08):
+Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên quan đến Booking, sửa đổi cơ chế scheduler dọn dẹp token, tích hợp file cấu hình môi trường, triển khai nghiệp vụ Đăng xuất (Blacklisting), tính năng Phê duyệt / Từ chối lịch (FR-08) và Tải lên hình ảnh tích hợp SDK Cloudinary (FR-09):
 
 ### 1. Áp dụng Constructor Projection trong BookingRepository
 *   **File chỉnh sửa:** [BookingRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/BookingRepository.java)
@@ -49,6 +49,14 @@ Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên qua
         *   `updateBookingStatus`: Kiểm tra booking có tồn tại không, nếu trạng thái hiện tại khác `PENDING` thì ném lỗi `DuplicateResourceException` (409 Conflict), ngược lại cập nhật và lưu trạng thái mới.
     *   Khai báo phương thức truy vấn `findBookingsByStatus` sử dụng Constructor Projection trong `BookingRepository`.
     *   Cấu hình phân quyền trong `SecurityConfig` cho phép các vai trò `ROLE_MANAGER` và `ROLE_ADMIN` được quyền truy cập vào đường dẫn `/api/v1/manager/bookings/**`.
+
+### 7. Bảo mật cấu hình Cloudinary và Triển khai API Tải ảnh (UC-09 / FR-09)
+*   **Các file chỉnh sửa/thêm mới:** [CloudinaryProperties.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/upload/CloudinaryProperties.java) [NEW], [UploadController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/file/UploadController.java) [NEW], [fr_09.md](file:///d:/IT211/Me/fr_09.md) [NEW], [CloudinaryConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/upload/CloudinaryConfig.java), [UploadService.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/upload/UploadService.java), [GlobalExceptionHandler.java](file:///d:/IT211/Me/src/main/java/atmin/common/exception/GlobalExceptionHandler.java), [.env](file:///d:/IT211/Me/.env), [application.properties](file:///d:/IT211/Me/src/main/resources/application.properties)
+*   **Chi tiết:**
+    *   **Bảo mật thông tin cấu hình:** Ẩn các biến cấu hình Cloudinary hardcode (`cloudName`, `apiKey`, `apiSecret`) vào tệp môi trường `.env`. Thực hiện ánh xạ thông qua `application.properties` và tạo lớp cấu hình `@ConfigurationProperties` `CloudinaryProperties` tương tự `JwtProperties`.
+    *   **Cập nhật config & service:** Tiêm `CloudinaryProperties` vào `CloudinaryConfig` để khởi tạo Bean `Cloudinary`. Cập nhật `UploadService.java` để bắt mọi ngoại lệ truyền tải và ném ra `CloudStorageException` (giúp trả về mã HTTP 503 khi lỗi hạ tầng mạng đám mây).
+    *   **Tạo mới API Controller:** Triển khai `UploadController.java` tại endpoint `/api/v1/files/upload` (POST) nhận `MultipartFile` có kiểm duyệt kích thước (<5MB) và định dạng tệp tin (PNG/JPG/JPEG). Nếu không hợp lệ, ném ra ngoại lệ `IllegalArgumentException` được cấu hình bắt tập trung trả về mã `400 Bad Request`.
+    *   **Bổ sung xử lý lỗi:** Thêm bộ xử lý `@ExceptionHandler(IllegalArgumentException.class)` trong `GlobalExceptionHandler.java` để trả về phản hồi chuẩn HTTP 400 Bad Request cho lỗi validation file.
 
 ---
 
