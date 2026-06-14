@@ -5,21 +5,19 @@ import atmin.common.exception.ResourceNotFoundException;
 import atmin.controller.auth.dto.request.LoginRequest;
 import atmin.controller.auth.dto.request.RegisterRequest;
 import atmin.controller.auth.dto.response.AuthResponse;
-import atmin.entity.RefreshToken;
 import atmin.entity.Role;
 import atmin.entity.User;
-import atmin.entity.TokenBlacklist;
-import atmin.repository.TokenBlacklistRepository;
+import atmin.repository.redis.TokenBlacklistRepository;
+import atmin.repository.redis.dto.RefreshTokenRedis;
 import atmin.controller.auth.dto.request.ChangePasswordRequest;
 import atmin.controller.auth.dto.request.ForgotPasswordRequest;
 import atmin.controller.auth.dto.request.ResetPasswordRequest;
 import atmin.service.IEmailService;
 import java.util.UUID;
-import java.time.ZoneId;
 import java.util.Date;
 import atmin.infrastructure.security.jwt.JwtProperties;
 import atmin.infrastructure.security.jwt.JwtProvider;
-import atmin.repository.RefreshTokenRepository;
+import atmin.repository.redis.RefreshTokenRepository;
 import atmin.repository.RoleRepository;
 import atmin.repository.UserRepository;
 import atmin.service.IAuthService;
@@ -33,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -84,20 +81,22 @@ public class AuthService implements IAuthService {
         String accessToken = jwtProvider.generateAccessToken(user);
         String refreshToken = jwtProvider.generateRefreshToken(user);
 
-        List<RefreshToken> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
+        // REDIS: Tìm và thu hồi (revoked = true) toàn bộ Refresh Token cũ của user này để ép đăng xuất các phiên cũ
+        List<RefreshTokenRedis> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
         if (activeTokens != null && !activeTokens.isEmpty()) {
             activeTokens.forEach(t -> t.setRevoked(true));
             refreshTokenRepository.saveAll(activeTokens);
         }
 
-        LocalDateTime expiryDateTime = LocalDateTime.now()
-                .plus(jwtProperties.getRefreshExpiration(), ChronoUnit.MILLIS);
+        long expiryDateTime = System.currentTimeMillis() + jwtProperties.getRefreshExpiration();
 
-        RefreshToken refreshEntity = RefreshToken.builder()
+        // REDIS: Tạo mới và lưu Refresh Token vào Redis dưới dạng DTO kèm thời gian hết hạn TTL
+        RefreshTokenRedis refreshEntity = RefreshTokenRedis
+                .builder()
                 .token(refreshToken)
-                .user(user)
+                .username(user.getUsername())
                 .expiredAt(expiryDateTime)
-                .isRevoked(false)
+                .revoked(false)
                 .build();
         refreshTokenRepository.save(refreshEntity);
 
@@ -108,11 +107,14 @@ public class AuthService implements IAuthService {
     public AuthResponse refreshToken(String refreshToken) {
         jwtProvider.validateRefreshToken(refreshToken);
 
-        RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
+        // REDIS: Tìm kiếm thông tin Refresh Token trên Redis
+        RefreshTokenRedis tokenEntity = refreshTokenRepository.findByToken(refreshToken)
                 .orElseThrow(() -> new ResourceNotFoundException("Refresh token not found"));
 
+        // REDIS: Phát hiện tấn công tái sử dụng (Reuse Attack)
+        // Nếu Refresh Token này đã bị thu hồi trước đó (revoked = true), ta sẽ thu hồi toàn bộ token khác của user này
         if (tokenEntity.isRevoked()) {
-            List<RefreshToken> activeTokens = refreshTokenRepository.findAllActiveByUser(tokenEntity.getUser());
+            List<RefreshTokenRedis> activeTokens = refreshTokenRepository.findAllActiveByUsername(tokenEntity.getUsername());
             if (activeTokens != null && !activeTokens.isEmpty()) {
                 activeTokens.forEach(t -> t.setRevoked(true));
                 refreshTokenRepository.saveAll(activeTokens);
@@ -120,23 +122,23 @@ public class AuthService implements IAuthService {
             throw new JwtException("Refresh token has been revoked due to potential reuse attack");
         }
 
-        User user = tokenEntity.getUser();
+        User user = userRepository.findByUsername(tokenEntity.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         String newAccessToken = jwtProvider.generateAccessToken(user);
         String newRefreshToken = jwtProvider.generateRefreshToken(user);
 
-        // Thu hồi token cũ và lưu token mới
+        // REDIS: Thu hồi token cũ (revoked = true) và cập nhật lại lên Redis
         tokenEntity.setRevoked(true);
         refreshTokenRepository.save(tokenEntity);
 
-        // Tránh bị tràn
-        LocalDateTime expiryDateTime = LocalDateTime.now()
-                .plus(jwtProperties.getRefreshExpiration(), ChronoUnit.MILLIS);
+        long expiryDateTime = System.currentTimeMillis() + jwtProperties.getRefreshExpiration();
 
-        RefreshToken newRefreshEntity = RefreshToken.builder()
+        // REDIS: Tạo mới và lưu Refresh Token mới vào Redis
+        RefreshTokenRedis newRefreshEntity = RefreshTokenRedis.builder()
                 .token(newRefreshToken)
-                .user(user)
+                .username(user.getUsername())
                 .expiredAt(expiryDateTime)
-                .isRevoked(false)
+                .revoked(false)
                 .build();
         refreshTokenRepository.save(newRefreshEntity);
 
@@ -153,21 +155,20 @@ public class AuthService implements IAuthService {
         String token = authHeader.substring(7);
         jwtProvider.validateAccessToken(token);
 
+        // REDIS: Lấy tên người dùng từ Access Token
         String username = jwtProvider.getUsernameFromToken(token);
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found for this token: " + username));
 
+        // REDIS: Thu hồi tất cả Refresh Token của người dùng này khi đăng xuất
+        List<RefreshTokenRedis> activeTokens = refreshTokenRepository.findAllActiveByUsername(username);
+        if (activeTokens != null && !activeTokens.isEmpty()) {
+            activeTokens.forEach(t -> t.setRevoked(true));
+            refreshTokenRepository.saveAll(activeTokens);
+        }
+
+        // REDIS: Lấy thời gian hết hạn còn lại của Access Token và đưa token đó vào blacklist trên Redis
         Date expirationDate = jwtProvider.getExpirationDateFromToken(token);
-        LocalDateTime expiryTime = expirationDate.toInstant()
-                .atZone(ZoneId.systemDefault())
-                .toLocalDateTime();
-
-        TokenBlacklist blacklist = TokenBlacklist.builder()
-                .token(token)
-                .expiryTime(expiryTime)
-                .user(user)
-                .build();
-        tokenBlacklistRepository.save(blacklist);
+        long expiryDurationMs = expirationDate.getTime() - System.currentTimeMillis();
+        tokenBlacklistRepository.blacklistToken(token, expiryDurationMs);
     }
 
     @Override
@@ -192,8 +193,8 @@ public class AuthService implements IAuthService {
         user.setPasswordChangedAt(LocalDateTime.now());
         userRepository.save(user);
 
-        // Thu hồi tất cả Refresh Token cũ của User để bắt đăng nhập lại
-        List<RefreshToken> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
+        // REDIS: Thu hồi toàn bộ Refresh Token của User này trên Redis để bắt họ đăng nhập lại trên mọi thiết bị
+        List<RefreshTokenRedis> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
         if (activeTokens != null && !activeTokens.isEmpty()) {
             activeTokens.forEach(t -> t.setRevoked(true));
             refreshTokenRepository.saveAll(activeTokens);
@@ -234,8 +235,8 @@ public class AuthService implements IAuthService {
         user.setPasswordChangedAt(LocalDateTime.now());
         userRepository.save(user);
 
-        // Thu hồi tất cả Refresh Token cũ
-        List<RefreshToken> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
+        // REDIS: Thu hồi toàn bộ Refresh Token cũ của User trên Redis sau khi reset mật khẩu thành công
+        List<RefreshTokenRedis> activeTokens = refreshTokenRepository.findAllActiveByUser(user);
         if (activeTokens != null && !activeTokens.isEmpty()) {
             activeTokens.forEach(t -> t.setRevoked(true));
             refreshTokenRepository.saveAll(activeTokens);

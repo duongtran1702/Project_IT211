@@ -2,7 +2,7 @@ package atmin.infrastructure.security.jwt;
 
 import atmin.common.response.ApiErrorResponse;
 import atmin.repository.UserRepository;
-import atmin.repository.TokenBlacklistRepository;
+import atmin.repository.redis.TokenBlacklistRepository;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

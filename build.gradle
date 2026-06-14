@@ -41,8 +41,7 @@ dependencies {
     implementation("com.cloudinary:cloudinary-http5:2.0.0")
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
-    implementation("redis.clients:jedis:7.5.2")
-    implementation("org.springframework.data:spring-data-redis:4.1.0")
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 }
 
 tasks.named('test') {
