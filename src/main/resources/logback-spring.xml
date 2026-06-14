@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Định nghĩa đường dẫn và tên file log -->
+    <property name="LOG_DIR" value="logs" />
+    <property name="LOG_FILE" value="${LOG_DIR}/app.log" />
+
+    <!-- 1. CẤU HÌNH LOG CONSOLE (Hiển thị màu sắc trên Terminal/IDE) -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!-- %highlight và %cyan giúp tô màu LEVEL và LOGGER để dễ đọc gỡ lỗi -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{36}) - [Trace: %X{traceId:-SYSTEM}] [User: %X{username:-SYSTEM}] - %msg%n%ex{10}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 2. CẤU HÌNH GHI LOG RA FILE (Tự động chia nhỏ và nén lưu trữ theo ngày) -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        
+        <!-- SizeAndTimeBasedRollingPolicy: Cuộn file log dựa trên cả Thời gian và Dung lượng -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Lưu trữ file log cũ vào thư mục archived với định dạng ngày tháng và số index (%i) -->
+            <fileNamePattern>${LOG_DIR}/archived/app-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            
+            <!-- Dung lượng tối đa của một file log. Nếu vượt quá 10MB sẽ tạo file mới (ví dụ: app-2026-06-14.1.log) -->
+            <maxFileSize>10MB</maxFileSize>
+            
+            <!-- Giữ lại log trong vòng tối đa 30 ngày qua, sau đó tự động xóa bớt để giải phóng đĩa -->
+            <maxHistory>30</maxHistory>
+            
+            <!-- Giới hạn tổng dung lượng tất cả các file log lưu trữ tối đa là 2GB -->
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        
+        <encoder>
+            <!-- Pattern ghi vào file (không có mã màu ANSI để tránh ký tự rác trong file text) -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - [Trace: %X{traceId:-SYSTEM}] [User: %X{username:-SYSTEM}] - %msg%n%nopex</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- CẤU HÌNH GHI LOG RIÊNG CHO GÓI DỰ ÁN (atmin package) -->
+    <logger name="atmin" level="INFO" additivity="false">
+        <!-- Đảm bảo toàn bộ log của dự án bao gồm PERFORMANCE và AUDIT đều được hiển thị trên console và lưu vào file không bị lặp -->
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+    </logger>
+
+    <!-- CẤU HÌNH ROOT LOGGER (Áp dụng cho toàn bộ Spring Boot) -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+    </root>
+
+</configuration>

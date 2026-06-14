@@ -5,9 +5,12 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import java.io.UnsupportedEncodingException;
 
 @Service
 @RequiredArgsConstructor
@@ -15,12 +18,19 @@ import org.springframework.stereotype.Service;
 public class EmailService implements IEmailService {
     private final JavaMailSender mailSender;
 
+    @Value("${spring.mail.username}")
+    private String fromEmail;
+
+    @Value("${spring.mail.from-name}")
+    private String fromName;
+
     @Override
     public void sendResetPasswordEmail(String toEmail, String token) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+            helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
             helper.setSubject("🏸 Đặt lại mật khẩu tài khoản cầu lông của bạn");
 
@@ -38,7 +48,7 @@ public class EmailService implements IEmailService {
             mailSender.send(message);
             log.info("Reset password email successfully sent to {}", toEmail);
 
-        } catch (MessagingException e) {
+        } catch (MessagingException | UnsupportedEncodingException e) {
             log.error("Failed to send reset password email to {}", toEmail, e);
             throw new RuntimeException("Failed to send reset password email", e);
         }

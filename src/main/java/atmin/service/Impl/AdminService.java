@@ -12,6 +12,7 @@ import atmin.repository.UserRepository;
 import atmin.service.IAdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,13 @@ public class AdminService implements IAdminService {
     @Transactional(readOnly = true)
     public Page<UserResponse> getUsers(String keyword, Pageable pageable) {
         Page<User> usersPage = userRepository.searchUsers(keyword, pageable);
-        return usersPage.map(UserResponse::fromEntity);
+
+        List<UserResponse> dtoList = usersPage.getContent().stream()
+                .filter(user -> !user.isDeleted())
+                .map(UserResponse::fromEntity)
+                .collect(java.util.stream.Collectors.toList());
+                
+        return new PageImpl<>(dtoList, pageable, usersPage.getTotalElements());
     }
 
     @Override

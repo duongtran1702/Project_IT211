@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -56,6 +57,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 jwtProvider.validateAccessToken(token);
                 String username = jwtProvider.getUsernameFromToken(token);
+                MDC.put("username", username);
 
                 // Kiểm duyệt xem mật khẩu của user có bị đổi sau thời điểm token phát hành không
                 LocalDateTime passwordChangedAt = userRepository.findPasswordChangedAtByUsername(username).orElse(null);

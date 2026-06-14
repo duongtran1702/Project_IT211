@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
@@ -51,6 +53,11 @@ public class BookingService implements IBookingService {
         // 3. Lấy thông tin TimeSlot
         TimeSlot timeSlotEntity = timeSlotRepository.findActiveById(request.getTimeSlotId())
                 .orElseThrow(() -> new ResourceNotFoundException("Time slot not found or is unavailable: " + request.getTimeSlotId()));
+
+        // Check if the booking date is today and the start time has already passed
+        if (request.getBookingDate().equals(LocalDate.now()) && LocalTime.now().isAfter(timeSlotEntity.getStartTime())) {
+            throw new IllegalArgumentException("The selected time slot has already passed for today!");
+        }
 
         // 4. Tạo chuỗi format timeSlot từ Entity (ví dụ: "07:00 - 09:00")
         String timeSlotString = timeSlotEntity.getStartTime().format(TIME_FORMATTER) + " - " +
