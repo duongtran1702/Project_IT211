@@ -104,4 +104,8 @@ public class JwtProvider {
         return extractClaimsJws(token).getExpiration();
     }
 
+    public Date getIssuedAtFromToken(String token) {
+        return extractClaimsJws(token).getIssuedAt();
+    }
+
 }

@@ -2,9 +2,6 @@ package atmin.infrastructure.upload;
 
 import com.cloudinary.Cloudinary;
 import atmin.common.exception.CloudStorageException;
-import atmin.common.exception.ResourceNotFoundException;
-import atmin.entity.Court;
-import atmin.repository.CourtRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,7 +12,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UploadService {
     private final Cloudinary cloudinary;
-    private final CourtRepository courtRepository;
 
     public String uploadFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -61,18 +57,4 @@ public class UploadService {
             throw new CloudStorageException("Cloud storage service is temporarily unavailable. Please try again later.", e);
         }
     }
-
-    public String uploadFile(MultipartFile file, Long courtId) {
-        String secureUrl = uploadFile(file);
-        if (courtId != null) {
-            Court court = courtRepository.findById(courtId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Court not found with id: " + courtId));
-            if (court.isDeleted()) {
-                throw new ResourceNotFoundException("Court not found with id: " + courtId);
-            }
-            court.setImageUrl(secureUrl);
-            courtRepository.save(court);
-        }
-        return secureUrl;
-    }
-}
+}

@@ -48,6 +48,9 @@ public class User extends BaseEntity implements UserDetails {
     @Column(name = "reset_token_expiry")
     private LocalDateTime resetTokenExpiry;
 
+    @Column(name = "password_changed_at")
+    private LocalDateTime passwordChangedAt;
+
 
     @JoinTable(
             name = "user_role",

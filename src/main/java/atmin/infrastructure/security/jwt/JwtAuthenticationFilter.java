@@ -1,6 +1,8 @@
 package atmin.infrastructure.security.jwt;
 
 import atmin.common.response.ApiErrorResponse;
+import atmin.repository.UserRepository;
+import atmin.repository.TokenBlacklistRepository;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -14,10 +16,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
-import atmin.repository.TokenBlacklistRepository;
 import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
 @Component
@@ -26,6 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtProvider jwtProvider;
     private final ObjectMapper objectMapper;
     private final TokenBlacklistRepository tokenBlacklistRepository;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -36,7 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = authHeader.substring(7);
             if (tokenBlacklistRepository.existsByToken(token)) {
                 ApiErrorResponse errorResponse = ApiErrorResponse.builder()
-                        .timestamp(java.time.LocalDateTime.now())
+                        .timestamp(LocalDateTime.now())
                         .status(HttpStatus.FORBIDDEN.value())
                         .error(HttpStatus.FORBIDDEN.getReasonPhrase())
                         .message("Access Denied: Token is blacklisted")
@@ -50,22 +55,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             try {
                 jwtProvider.validateAccessToken(token);
-                    String username = jwtProvider.getUsernameFromToken(token);
-                    List<String> roles = jwtProvider.getRolesFromToken(token);
-                    List<SimpleGrantedAuthority> authorities = roles
-                            .stream().map(SimpleGrantedAuthority::new)
-                            .toList();
+                String username = jwtProvider.getUsernameFromToken(token);
 
-                    if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                        UsernamePasswordAuthenticationToken auth =
-                                new UsernamePasswordAuthenticationToken(username, null, authorities);
-                        SecurityContextHolder.getContext().setAuthentication(auth);
+                // Kiểm duyệt xem mật khẩu của user có bị đổi sau thời điểm token phát hành không
+                LocalDateTime passwordChangedAt = userRepository.findPasswordChangedAtByUsername(username).orElse(null);
+                if (passwordChangedAt != null) {
+                    Date issuedAtDate = jwtProvider.getIssuedAtFromToken(token);
+                    if (issuedAtDate != null) {
+                        LocalDateTime issuedAt = LocalDateTime.ofInstant(issuedAtDate.toInstant(), ZoneId.systemDefault());
+                        if (issuedAt.isBefore(passwordChangedAt)) {
+                            throw new JwtException("Token has been invalidated due to password change");
+                        }
                     }
+                }
+
+                List<String> roles = jwtProvider.getRolesFromToken(token);
+                List<SimpleGrantedAuthority> authorities = roles
+                        .stream().map(SimpleGrantedAuthority::new)
+                        .toList();
+
+                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    UsernamePasswordAuthenticationToken auth =
+                            new UsernamePasswordAuthenticationToken(username, null, authorities);
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
 
             } catch (JwtException e) {
                 logger.warn("JWT validation failed: " + e.getMessage());
                 ApiErrorResponse errorResponse = ApiErrorResponse.builder()
-                        .timestamp(java.time.LocalDateTime.now())
+                        .timestamp(LocalDateTime.now())
                         .status(HttpStatus.UNAUTHORIZED.value())
                         .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
                         .message(e.getMessage())
@@ -78,6 +96,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
         }
-        filterChain.doFilter(request,response);
+        filterChain.doFilter(request, response);
     }
 }

@@ -1,5 +1,206 @@
 # Nhật Ký Cập Nhật Hệ Thống (Update Log)
 
+## 📌 [Cập nhật ngày 12/06/2026 - Lần 5] - Vô hiệu hóa Access Token lập tức khi đổi/reset mật khẩu
+
+Hệ thống đã triển khai cơ chế kiểm tra thời gian phát hành Token để hủy ngay lập tức các Access Token cũ trên toàn bộ các thiết bị khi người dùng đổi mật khẩu hoặc reset mật khẩu thành công.
+
+### 1. Bổ sung trường passwordChangedAt vào User Entity
+*   **File chỉnh sửa:** [User.java](file:///d:/IT211/Me/src/main/java/atmin/entity/User.java)
+*   **Chi tiết thay đổi:** Bổ sung thuộc tính `passwordChangedAt` (`LocalDateTime`) để lưu trữ thời gian thay đổi mật khẩu gần nhất.
+
+### 2. Thêm phương thức truy vấn tối ưu vào UserRepository
+*   **File chỉnh sửa:** [UserRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/UserRepository.java)
+*   **Chi tiết thay đổi:** Khai báo phương thức truy vấn nhanh chỉ chọn trường `passwordChangedAt` theo `username` giúp tối ưu hóa hiệu năng hệ thống khi chạy filter kiểm duyệt:
+    ```java
+    @Query("SELECT u.passwordChangedAt FROM User u WHERE u.username = :username")
+    Optional<LocalDateTime> findPasswordChangedAtByUsername(@Param("username") String username);
+    ```
+
+### 3. Cập nhật thời điểm đổi mật khẩu trong AuthService
+*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java)
+*   **Chi tiết thay đổi:** Gán `user.setPasswordChangedAt(LocalDateTime.now())` khi thực thi phương thức `changePassword` và `resetPassword` trước khi lưu thực thể vào database.
+
+### 4. Bổ sung đọc thời gian phát hành Token trong JwtProvider
+*   **File chỉnh sửa:** [JwtProvider.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtProvider.java)
+*   **Chi tiết thay đổi:** Viết phương thức `getIssuedAtFromToken(String token)` để trích xuất thời điểm Token được tạo (`issuedAt`) từ các claims của JWT.
+
+### 5. So sánh kiểm duyệt Token trong JwtAuthenticationFilter
+*   **File chỉnh sửa:** [JwtAuthenticationFilter.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtAuthenticationFilter.java)
+*   **Chi tiết thay đổi:**
+    *   Tiêm `UserRepository` để kiểm tra.
+    *   Trích xuất thời điểm phát hành của Token (`issuedAt`) và so sánh với `passwordChangedAt` trong DB của người dùng.
+    *   Nếu `issuedAt.isBefore(passwordChangedAt)`, ném ra `JwtException("Token has been invalidated due to password change")` để chặn yêu cầu và trả về lỗi `401 Unauthorized` ngay lập tức.
+
+## 📌 [Cập nhật ngày 12/06/2026 - Lần 4] - Bổ sung kiểm tra mật khẩu cũ và mới khi đổi mật khẩu
+
+Hệ thống đã cập nhật thêm bước xác thực nghiệp vụ khi đổi mật khẩu (Change Password) nhằm ngăn ngừa người dùng đổi mật khẩu mới trùng khớp hoàn toàn với mật khẩu hiện tại.
+
+### 1. Bổ sung kiểm tra mật khẩu cũ và mới trong AuthService
+*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java)
+*   **Chi tiết thay đổi:**
+    *   Thêm điều kiện so sánh trực tiếp mật khẩu cũ và mật khẩu mới trong yêu cầu gửi lên:
+        ```java
+        if (request.getOldPassword().equals(request.getNewPassword())) {
+            throw new IllegalArgumentException("New password must be different from the old password!");
+        }
+        ```
+    *   Nếu người dùng cố ý nhập mật khẩu mới giống hệt mật khẩu cũ, hệ thống sẽ ném ra ngoại lệ `IllegalArgumentException` và được `GlobalExceptionHandler` bắt tập trung để trả về mã lỗi `400 Bad Request` cho Client.
+
+## 📌 [Cập nhật ngày 12/06/2026 - Lần 3] - Tái cấu trúc module Upload và tách biệt CourtService tuân thủ nguyên lý đơn nhiệm (SRP)
+
+Hệ thống đã thực hiện phân tách nhiệm vụ của module tải hình ảnh (Upload) và tích hợp thêm dịch vụ quản lý sân (`CourtService`). Tận dụng quy trình **kiểm duyệt thông tin sân trước khi upload** giúp ngăn ngừa việc tải ảnh lên Cloudinary bất hợp lệ, tiết kiệm băng thông và tài nguyên lưu trữ đám mây.
+
+### 1. Tạo mới giao diện và triển khai Court Service (Hỗ trợ Kiểm duyệt trước khi Upload)
+*   **File thêm mới:** [ICourtService.java](file:///d:/IT211/Me/src/main/java/atmin/service/ICourtService.java), [CourtService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/CourtService.java)
+*   **Chi tiết code:**
+    *   Xây dựng phương thức nghiệp vụ hợp nhất `String uploadCourtImage(Long courtId, MultipartFile file)` trong `CourtService`.
+    *   Kiểm tra thực thể Sân (`Court`) có tồn tại và chưa bị xóa (`isDeleted == false`) trước tiên. Nếu không thỏa mãn, lập tức ném ra ngoại lệ mà **không thực hiện upload**.
+    *   Nếu hợp lệ, thực hiện gọi hạ tầng tải ảnh lên qua `UploadService.uploadFile` và gán URL ảnh nhận được vào thực thể Sân rồi cập nhật database.
+
+### 2. Tinh giản và loại bỏ logic DB khỏi Upload Service
+*   **File chỉnh sửa:** [UploadService.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/upload/UploadService.java)
+*   **Chi tiết code thay đổi:**
+    *   *Trước khi sửa:* Chứa dependency `CourtRepository` và phương thức bọc cập nhật cơ sở dữ liệu:
+        ```java
+        public String uploadFile(MultipartFile file, Long courtId) {
+            String secureUrl = uploadFile(file);
+            if (courtId != null) {
+                Court court = courtRepository.findById(courtId)...
+                court.setImageUrl(secureUrl);
+                courtRepository.save(court);
+            }
+            return secureUrl;
+        }
+        ```
+    *   *Sau khi sửa:* Loại bỏ hoàn toàn `CourtRepository` và phương thức trên. `UploadService` chỉ còn giữ hàm `uploadFile(MultipartFile file)` trả về chuỗi URL ảnh thô tải lên từ Cloudinary.
+
+### 3. Đơn giản hóa Upload Controller
+*   **File chỉnh sửa:** [UploadController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/file/UploadController.java)
+*   **Chi tiết code thay đổi:**
+    *   *Trước khi sửa:* Tự điều phối upload và gọi cập nhật:
+        ```java
+        @PostMapping("/manager/files/upload/courts/{id}")
+        public ResponseEntity<ApiResponse<String>> uploadCourtImage(
+                @PathVariable Long id,
+                @RequestParam("file") MultipartFile file) {
+            String secureUrl = uploadService.uploadFile(file, id);
+            return ResponseEntity.ok(ApiResponse.success("Court image updated successfully", secureUrl));
+        }
+        ```
+    *   *Sau khi sửa:* Controller chỉ còn làm nhiệm vụ duy nhất là tiếp nhận request và gọi một phương thức nghiệp vụ thuộc `CourtService`:
+        ```java
+        @PostMapping("/manager/files/upload/courts/{id}")
+        public ResponseEntity<ApiResponse<String>> uploadCourtImage(
+                @PathVariable Long id,
+                @RequestParam("file") MultipartFile file) {
+            String secureUrl = courtService.uploadCourtImage(id, file);
+            return ResponseEntity.ok(ApiResponse.success("Court image updated successfully", secureUrl));
+        }
+        ```
+
+## 📌 [Cập nhật ngày 12/06/2026 - Lần 2] - Tái cấu trúc module Auth tuân thủ nguyên lý đơn nhiệm (SRP)
+
+Hệ thống đã thực hiện tái cấu trúc module xác thực (Auth) nhằm tách biệt hoàn toàn tầng nghiệp vụ (Service) khỏi tầng Web/HTTP, đảm bảo tính đơn nhiệm (Single Responsibility Principle) và tăng tính tái sử dụng của mã nguồn. Chi tiết các thay đổi code như sau:
+
+### 1. Tách biệt tầng Giao diện Service (IAuthService)
+*   **File chỉnh sửa:** [IAuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IAuthService.java)
+*   **Chi tiết code thay đổi:**
+    *   *Trước khi sửa:*
+        ```java
+        public interface IAuthService {
+            ResponseEntity<ApiResponse<Void>> register(RegisterRequest request);
+            ResponseEntity<ApiResponse<AuthResponse>> login(LoginRequest request);
+            ResponseEntity<ApiResponse<AuthResponse>> refreshToken(String refreshToken);
+            ResponseEntity<ApiResponse<Void>> logout(String authHeader);
+            ResponseEntity<ApiResponse<Void>> changePassword(String username, ChangePasswordRequest request);
+            ResponseEntity<ApiResponse<Void>> forgotPassword(ForgotPasswordRequest request);
+            ResponseEntity<ApiResponse<Void>> resetPassword(ResetPasswordRequest request);
+        }
+        ```
+    *   *Sau khi sửa:*
+        ```java
+        public interface IAuthService {
+            void register(RegisterRequest request);
+            AuthResponse login(LoginRequest request);
+            AuthResponse refreshToken(String refreshToken);
+            void logout(String authHeader);
+            void changePassword(String username, ChangePasswordRequest request);
+            void forgotPassword(ForgotPasswordRequest request);
+            void resetPassword(ResetPasswordRequest request);
+        }
+        ```
+
+### 2. Tái cấu trúc tầng Triển khai Service (AuthService)
+*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java)
+*   **Chi tiết code thay đổi (ví dụ hàm `register` và `login`):**
+    *   *Trước khi sửa:*
+        ```java
+        @Override
+        public ResponseEntity<ApiResponse<Void>> register(RegisterRequest request) {
+            // ... Logic kiểm tra dữ liệu trùng lặp ...
+            userRepository.save(newUser);
+            ApiResponse<Void> response = ApiResponse.success("User registered successfully!");
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
+        }
+
+        @Override
+        public ResponseEntity<ApiResponse<AuthResponse>> login(LoginRequest request) {
+            // ... Logic xác thực và tạo JWT ...
+            ApiResponse<AuthResponse> response = ApiResponse.success("Login successfully!", new AuthResponse(accessToken, refreshToken));
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        }
+        ```
+    *   *Sau khi sửa:*
+        ```java
+        @Override
+        public void register(RegisterRequest request) {
+            // ... Logic kiểm tra dữ liệu trùng lặp ...
+            userRepository.save(newUser);
+        }
+
+        @Override
+        public AuthResponse login(LoginRequest request) {
+            // ... Logic xác thực và tạo JWT ...
+            return new AuthResponse(accessToken, refreshToken);
+        }
+        ```
+
+### 3. Chuyển giao trách nhiệm bọc HTTP Response cho AuthController
+*   **File chỉnh sửa:** [AuthController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/auth/AuthController.java)
+*   **Chi tiết code thay đổi (ví dụ hàm `register` và `login`):**
+    *   *Trước khi sửa:*
+        ```java
+        @PostMapping("/register")
+        public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
+            return authService.register(request);
+        }
+
+        @PostMapping("/login")
+        public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
+            return authService.login(request);
+        }
+        ```
+    *   *Sau khi sửa:*
+        ```java
+        @PostMapping("/register")
+        public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
+            authService.register(request);
+            return new ResponseEntity<>(ApiResponse.success("User registered successfully!"), HttpStatus.CREATED);
+        }
+
+        @PostMapping("/login")
+        public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
+            AuthResponse response = authService.login(request);
+            return ResponseEntity.ok(ApiResponse.success("Login successfully!", response));
+        }
+        ```
+
+### 4. Loại bỏ trùng lặp bean bảo mật cấu hình trong SecurityConfig
+*   **File chỉnh sửa:** [SecurityConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/SecurityConfig.java)
+*   **Chi tiết thay đổi:**
+    *   *Trước khi sửa:* Cả hai tệp `SecurityConfig` và `SecurityExceptionConfig` đều định nghĩa `@Bean` cho `AuthenticationEntryPoint` và `AccessDeniedHandler` trùng tên nhau, dẫn đến xung đột chồng chéo bean khi Spring Boot khởi tạo ApplicationContext.
+    *   *Sau khi sửa:* Xóa bỏ định nghĩa `@Bean` của `AuthenticationEntryPoint` và `AccessDeniedHandler` khỏi `SecurityConfig.java`. Thực hiện tiêm chúng qua constructor (`private final AuthenticationEntryPoint authenticationEntryPoint` và `private final AccessDeniedHandler accessDeniedHandler`) từ `SecurityExceptionConfig` rồi ánh xạ trực tiếp vào cấu hình `.exceptionHandling()` của filter chain.
+
 ## 📌 [Cập nhật ngày 12/06/2026] - Tối ưu hóa truy vấn, dọn dẹp token và tính năng Đăng xuất (Blacklisting)
 
 Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên quan đến Booking, sửa đổi cơ chế scheduler dọn dẹp token, tích hợp file cấu hình môi trường, triển khai nghiệp vụ Đăng xuất (Blacklisting), tính năng Phê duyệt / Từ chối lịch (FR-08) và Tải lên hình ảnh tích hợp SDK Cloudinary (FR-09):
@@ -55,7 +256,7 @@ Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên qua
 *   **Chi tiết:**
     *   **Bảo mật thông tin cấu hình:** Ẩn các biến cấu hình Cloudinary hardcode (`cloudName`, `apiKey`, `apiSecret`) vào tệp môi trường `.env`. Thực hiện ánh xạ thông qua `application.properties` và tạo lớp cấu hình `@ConfigurationProperties` `CloudinaryProperties` tương tự `JwtProperties`.
     *   **Cập nhật config & service:** Tiêm `CloudinaryProperties` vào `CloudinaryConfig` để khởi tạo Bean `Cloudinary`. Cập nhật `UploadService.java` để bắt mọi ngoại lệ truyền tải và ném ra `CloudStorageException` (giúp trả về mã HTTP 503 khi lỗi hạ tầng mạng đám mây).
-    *   **Tạo mới API Controller:** Triển khai `UploadController.java` tại endpoint `/api/v1/files/upload` (POST) nhận `MultipartFile` có kiểm duyệt kích thước (<5MB) và định dạng tệp tin (PNG/JPG/JPEG). Nếu không hợp lệ, ném ra ngoại lệ `IllegalArgumentException` được cấu hình bắt tập trung trả về mã `400 Bad Request`.
+    *   **Tạo mới API Controller:** Triển khai `UploadController.java` tại endpoint `/api/v1/manager/files/upload` và `/api/v1/manager/files/upload/courts/{id}` (POST) nhận `MultipartFile` có kiểm duyệt kích thước (<5MB) và định dạng tệp tin (PNG/JPG/JPEG). Nếu không hợp lệ, ném ra ngoại lệ `IllegalArgumentException` được cấu hình bắt tập trung trả về mã `400 Bad Request` (chỉ cho phép Quản lý upload hình ảnh và cập nhật ảnh sân theo đúng tài liệu SRS mới cập nhật).
     *   **Bổ sung xử lý lỗi:** Thêm bộ xử lý `@ExceptionHandler(IllegalArgumentException.class)` trong `GlobalExceptionHandler.java` để trả về phản hồi chuẩn HTTP 400 Bad Request cho lỗi validation file.
 
 ---

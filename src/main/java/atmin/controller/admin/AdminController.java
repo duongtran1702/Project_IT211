@@ -53,6 +53,6 @@ public class AdminController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
         adminService.deleteUser(id);
-        return ResponseEntity.ok(ApiResponse.success("User deleted successfully"));
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success("User deleted successfully"));
     }
 }

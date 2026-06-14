@@ -2,7 +2,6 @@ package atmin.service.Impl;
 
 import atmin.common.exception.DuplicateResourceException;
 import atmin.common.exception.ResourceNotFoundException;
-import atmin.common.response.ApiResponse;
 import atmin.controller.auth.dto.request.LoginRequest;
 import atmin.controller.auth.dto.request.RegisterRequest;
 import atmin.controller.auth.dto.response.AuthResponse;
@@ -27,8 +26,6 @@ import atmin.service.IAuthService;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -54,7 +51,7 @@ public class AuthService implements IAuthService {
     private final IEmailService emailService;
 
     @Override
-    public ResponseEntity<ApiResponse<Void>> register(RegisterRequest request) {
+    public void register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new DuplicateResourceException("Username already exists!");
         }
@@ -73,13 +70,10 @@ public class AuthService implements IAuthService {
 
         User newUser = request.toEntity(passwordEncoder.encode(request.getPassword()), roleUser);
         userRepository.save(newUser);
-
-        ApiResponse<Void> response = ApiResponse.success("User registered successfully!");
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @Override
-    public ResponseEntity<ApiResponse<AuthResponse>> login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
         log.info("{} logged in successfully", request.getUsername());
@@ -107,15 +101,11 @@ public class AuthService implements IAuthService {
                 .build();
         refreshTokenRepository.save(refreshEntity);
 
-        ApiResponse<AuthResponse> response = ApiResponse.success("Login successfully!",
-                new AuthResponse(accessToken, refreshToken));
-
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return new AuthResponse(accessToken, refreshToken);
     }
 
     @Override
-    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(String refreshToken) {
-
+    public AuthResponse refreshToken(String refreshToken) {
         jwtProvider.validateRefreshToken(refreshToken);
 
         RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
@@ -150,15 +140,12 @@ public class AuthService implements IAuthService {
                 .build();
         refreshTokenRepository.save(newRefreshEntity);
 
-        ApiResponse<AuthResponse> response = ApiResponse.success("Refresh successfully!",
-                new AuthResponse(newAccessToken, newRefreshToken));
-
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return new AuthResponse(newAccessToken, newRefreshToken);
     }
 
     @Override
     @Transactional
-    public ResponseEntity<ApiResponse<Void>> logout(String authHeader) {
+    public void logout(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new JwtException("Full authentication is required to access this resource");
         }
@@ -181,13 +168,11 @@ public class AuthService implements IAuthService {
                 .user(user)
                 .build();
         tokenBlacklistRepository.save(blacklist);
-
-        return new ResponseEntity<>(ApiResponse.success("Logout successfully!"), HttpStatus.OK);
     }
 
     @Override
     @Transactional
-    public ResponseEntity<ApiResponse<Void>> changePassword(String username, ChangePasswordRequest request) {
+    public void changePassword(String username, ChangePasswordRequest request) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
 
@@ -195,11 +180,16 @@ public class AuthService implements IAuthService {
             throw new IllegalArgumentException("Old password does not match!");
         }
 
+        if (request.getOldPassword().equals(request.getNewPassword())) {
+            throw new IllegalArgumentException("New password must be different from the old password!");
+        }
+
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("New password and confirm password do not match!");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordChangedAt(LocalDateTime.now());
         userRepository.save(user);
 
         // Thu hồi tất cả Refresh Token cũ của User để bắt đăng nhập lại
@@ -208,13 +198,11 @@ public class AuthService implements IAuthService {
             activeTokens.forEach(t -> t.setRevoked(true));
             refreshTokenRepository.saveAll(activeTokens);
         }
-
-        return new ResponseEntity<>(ApiResponse.success("Password changed successfully!"), HttpStatus.OK);
     }
 
     @Override
     @Transactional
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(ForgotPasswordRequest request) {
+    public void forgotPassword(ForgotPasswordRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("Email does not exist!"));
 
@@ -224,14 +212,11 @@ public class AuthService implements IAuthService {
         userRepository.save(user);
 
         emailService.sendResetPasswordEmail(user.getEmail(), token);
-
-        ApiResponse<Void> response = ApiResponse.success("Password reset email sent successfully. Please check your inbox.");
-        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @Override
     @Transactional
-    public ResponseEntity<ApiResponse<Void>> resetPassword(ResetPasswordRequest request) {
+    public void resetPassword(ResetPasswordRequest request) {
         User user = userRepository.findByResetToken(request.getToken())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token!"));
 
@@ -246,6 +231,7 @@ public class AuthService implements IAuthService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setResetToken(null);
         user.setResetTokenExpiry(null);
+        user.setPasswordChangedAt(LocalDateTime.now());
         userRepository.save(user);
 
         // Thu hồi tất cả Refresh Token cũ
@@ -254,7 +240,5 @@ public class AuthService implements IAuthService {
             activeTokens.forEach(t -> t.setRevoked(true));
             refreshTokenRepository.saveAll(activeTokens);
         }
-
-        return new ResponseEntity<>(ApiResponse.success("Password reset successfully!"), HttpStatus.OK);
     }
 }

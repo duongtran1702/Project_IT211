@@ -8,6 +8,7 @@ import atmin.controller.auth.dto.response.AuthResponse;
 import atmin.service.IAuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,38 +25,45 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
-        return authService.register(request);
+        authService.register(request);
+        return new ResponseEntity<>(ApiResponse.success("User registered successfully!"), HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(ApiResponse.success("Login successfully!", response));
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        return authService.refreshToken(request.getRefreshToken());
+        AuthResponse response = authService.refreshToken(request.getRefreshToken());
+        return ResponseEntity.ok(ApiResponse.success("Refresh successfully!", response));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
-        return authService.logout(authHeader);
+        authService.logout(authHeader);
+        return ResponseEntity.ok(ApiResponse.success("Logout successfully!"));
     }
 
     @PostMapping("/change-password")
     public ResponseEntity<ApiResponse<Void>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,
             Principal principal) {
-        return authService.changePassword(principal.getName(), request);
+        authService.changePassword(principal.getName(), request);
+        return ResponseEntity.ok(ApiResponse.success("Password changed successfully!"));
     }
 
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        return authService.forgotPassword(request);
+        authService.forgotPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Password reset email sent successfully. Please check your inbox."));
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        return authService.resetPassword(request);
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Password reset successfully!"));
     }
 }

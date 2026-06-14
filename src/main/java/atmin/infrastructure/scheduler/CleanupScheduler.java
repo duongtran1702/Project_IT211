@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class RefreshTokenCleanupScheduler {
+public class CleanupScheduler {
 
     private final RefreshTokenRepository refreshTokenRepository;
 
