@@ -7,7 +7,7 @@ import atmin.entity.User;
 import atmin.repository.redis.TokenBlacklistRepository;
 import atmin.repository.RoleRepository;
 import atmin.repository.UserRepository;
-import atmin.service.Impl.AuthService;
+import atmin.service.impl.AuthService;
 import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

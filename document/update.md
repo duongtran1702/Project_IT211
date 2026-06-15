@@ -17,7 +17,7 @@ Hệ thống đã triển khai cơ chế kiểm tra thời gian phát hành Toke
     ```
 
 ### 3. Cập nhật thời điểm đổi mật khẩu trong AuthService
-*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java)
+*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/AuthService.java)
 *   **Chi tiết thay đổi:** Gán `user.setPasswordChangedAt(LocalDateTime.now())` khi thực thi phương thức `changePassword` và `resetPassword` trước khi lưu thực thể vào database.
 
 ### 4. Bổ sung đọc thời gian phát hành Token trong JwtProvider
@@ -36,7 +36,7 @@ Hệ thống đã triển khai cơ chế kiểm tra thời gian phát hành Toke
 Hệ thống đã cập nhật thêm bước xác thực nghiệp vụ khi đổi mật khẩu (Change Password) nhằm ngăn ngừa người dùng đổi mật khẩu mới trùng khớp hoàn toàn với mật khẩu hiện tại.
 
 ### 1. Bổ sung kiểm tra mật khẩu cũ và mới trong AuthService
-*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java)
+*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/AuthService.java)
 *   **Chi tiết thay đổi:**
     *   Thêm điều kiện so sánh trực tiếp mật khẩu cũ và mật khẩu mới trong yêu cầu gửi lên:
         ```java
@@ -51,7 +51,7 @@ Hệ thống đã cập nhật thêm bước xác thực nghiệp vụ khi đổ
 Hệ thống đã thực hiện phân tách nhiệm vụ của module tải hình ảnh (Upload) và tích hợp thêm dịch vụ quản lý sân (`CourtService`). Tận dụng quy trình **kiểm duyệt thông tin sân trước khi upload** giúp ngăn ngừa việc tải ảnh lên Cloudinary bất hợp lệ, tiết kiệm băng thông và tài nguyên lưu trữ đám mây.
 
 ### 1. Tạo mới giao diện và triển khai Court Service (Hỗ trợ Kiểm duyệt trước khi Upload)
-*   **File thêm mới:** [ICourtService.java](file:///d:/IT211/Me/src/main/java/atmin/service/ICourtService.java), [CourtService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/CourtService.java)
+*   **File thêm mới:** [ICourtService.java](file:///d:/IT211/Me/src/main/java/atmin/service/ICourtService.java), [CourtService.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/CourtService.java)
 *   **Chi tiết code:**
     *   Xây dựng phương thức nghiệp vụ hợp nhất `String uploadCourtImage(Long courtId, MultipartFile file)` trong `CourtService`.
     *   Kiểm tra thực thể Sân (`Court`) có tồn tại và chưa bị xóa (`isDeleted == false`) trước tiên. Nếu không thỏa mãn, lập tức ném ra ngoại lệ mà **không thực hiện upload**.
@@ -131,7 +131,7 @@ Hệ thống đã thực hiện tái cấu trúc module xác thực (Auth) nhằ
         ```
 
 ### 2. Tái cấu trúc tầng Triển khai Service (AuthService)
-*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java)
+*   **File chỉnh sửa:** [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/AuthService.java)
 *   **Chi tiết code thay đổi (ví dụ hàm `register` và `login`):**
     *   *Trước khi sửa:*
         ```java
@@ -210,7 +210,7 @@ Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên qua
 *   **Chi tiết:** Thay đổi câu truy vấn `findBookingsByUser` và bổ sung `findResponseById` để sử dụng cấu trúc `SELECT new atmin.controller.booking.dto.response.BookingResponse(...)`. Giải pháp này giúp chỉ lấy chính xác các cột cần thiết từ Database (`b.id`, `b.bookingDate`, `b.timeSlot`, `b.totalPrice`, `b.status`, `c.courtName`, `cl.name`, `u.fullName`) và tự động khởi tạo trực tiếp DTO `BookingResponse`. Nhờ đó, tránh tải toàn bộ thực thể cồng kềnh như `User` (với eager roles) hay `Court`, `BadmintonCluster`.
 
 ### 2. Loại bỏ bước mapping thủ công trong BookingService
-*   **File chỉnh sửa:** [BookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/BookingService.java)
+*   **File chỉnh sửa:** [BookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/BookingService.java)
 *   **Chi tiết:**
     *   Trong phương thức `getBookingHistory`, trả về trực tiếp `Page<BookingResponse>` nhận được từ repository thay vì map thủ công trong bộ nhớ (giúp triệt tiêu hoàn toàn lỗi N+1 SQL queries khi tải danh sách lịch sử booking).
     *   Trong phương thức `createBooking`, sau khi lưu booking mới thành công, tiến hành truy vấn lại bằng phương thức chiếu `findResponseById` để trả về phản hồi tối ưu nhất cho Client.
@@ -229,7 +229,7 @@ Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên qua
     *   Thay thế bằng placeholder `jwt.secret-key=${JWT_SECRET_KEY}` trong `application.properties` để Spring Boot tự động nhận diện giá trị tương ứng.
 
 ### 5. Triển khai chức năng Đăng xuất & Thu hồi Token - Blacklisting (UC-03 / FR-03)
-*   **Các file chỉnh sửa/thêm mới:** [TokenBlacklistRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/TokenBlacklistRepository.java) [NEW], [JwtProvider.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtProvider.java), [IAuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IAuthService.java), [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/AuthService.java), [AuthController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/auth/AuthController.java), [JwtAuthenticationFilter.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtAuthenticationFilter.java)
+*   **Các file chỉnh sửa/thêm mới:** [TokenBlacklistRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/TokenBlacklistRepository.java) [NEW], [JwtProvider.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtProvider.java), [IAuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IAuthService.java), [AuthService.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/AuthService.java), [AuthController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/auth/AuthController.java), [JwtAuthenticationFilter.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/jwt/JwtAuthenticationFilter.java)
 *   **Chi tiết:**
     *   Xây dựng kho lưu trữ `TokenBlacklistRepository` tương tác với bảng `token_blacklists`.
     *   Hỗ trợ trích xuất thời gian hết hạn (`Expiration`) trong `JwtProvider`.
@@ -239,7 +239,7 @@ Hệ thống đã được cập nhật tối ưu hóa các truy vấn liên qua
     *   Cấu hình `JwtAuthenticationFilter` tự động chặn và trả về mã lỗi `401 Unauthorized` chứa thông điệp cụ thể của ngoại lệ `JwtException` (ví dụ: `"Token has expired"` khi hết hạn) thay vì bỏ qua để Spring Security ném ra thông báo mặc định `"Full authentication is required..."`. Cách này giúp Client/Frontend nhận diện chính xác lỗi hết hạn để kích hoạt luồng Refresh Token.
 
 ### 6. Triển khai tính năng Phê duyệt / Từ chối lịch đặt sân (UC-08 / FR-08)
-*   **Các file chỉnh sửa/thêm mới:** [BookingManagerController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/booking/BookingManagerController.java) [NEW], [BookingStatusUpdateRequest.java](file:///d:/IT211/Me/src/main/java/atmin/controller/booking/dto/request/BookingStatusUpdateRequest.java) [NEW], [IBookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IBookingService.java), [BookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/BookingService.java), [BookingRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/BookingRepository.java), [SecurityConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/SecurityConfig.java)
+*   **Các file chỉnh sửa/thêm mới:** [BookingManagerController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/booking/BookingManagerController.java) [NEW], [BookingStatusUpdateRequest.java](file:///d:/IT211/Me/src/main/java/atmin/controller/booking/dto/request/BookingStatusUpdateRequest.java) [NEW], [IBookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IBookingService.java), [BookingService.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/BookingService.java), [BookingRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/BookingRepository.java), [SecurityConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/SecurityConfig.java)
 *   **Chi tiết:**
     *   Xây dựng DTO `BookingStatusUpdateRequest` với các ràng buộc kiểm tra hợp lệ (`@NotBlank`, `@Pattern` chỉ chấp nhận `CONFIRMED` hoặc `REJECTED`).
     *   Tạo controller `BookingManagerController` với các API dành riêng cho Manager/Admin tại `/api/v1/manager/bookings`:
@@ -324,9 +324,9 @@ Chức năng này giúp Admin (`ROLE_ADMIN`) thực hiện các nghiệp vụ CR
     - **[UserResponse.java](file:///d:/IT211/Me/src/main/java/atmin/controller/user/dto/UserResponse.java)**: Định dạng dữ liệu phản hồi an toàn cho Client (giấu mật khẩu, chuyển vai trò thành Set tên).
 - **Repository (`atmin.repository`)**:
     - **[UserRepository.java](file:///d:/IT211/Me/src/main/java/atmin/repository/UserRepository.java) [Cập nhật]**: Thêm phương thức `@Query("searchUsers")` hỗ trợ phân trang lọc theo từ khóa.
-- **Service (`atmin.service` & `atmin.service.Impl`)**:
+- **Service (`atmin.service` & `atmin.service.impl`)**:
     - **[IUserService.java](file:///d:/IT211/Me/src/main/java/atmin/service/IUserService.java)**: Giao diện nghiệp vụ quản lý người dùng.
-    - **[UserServiceImpl.java](file:///d:/IT211/Me/src/main/java/atmin/service/Impl/UserServiceImpl.java)**: Triển khai các phương thức nghiệp vụ chi tiết, áp dụng Java Stream API để ánh xạ DTO (UC-02) và BCrypt mã hóa mật khẩu.
+    - **[UserServiceImpl.java](file:///d:/IT211/Me/src/main/java/atmin/service/impl/UserServiceImpl.java)**: Triển khai các phương thức nghiệp vụ chi tiết, áp dụng Java Stream API để ánh xạ DTO (UC-02) và BCrypt mã hóa mật khẩu.
 - **Controller & Security (`atmin.controller.user` & `atmin.infrastructure.security`)**:
     - **[UserController.java](file:///d:/IT211/Me/src/main/java/atmin/controller/user/UserController.java)**: Cung cấp API RESTful CRUD dưới đường dẫn `/api/v1/admin/users`.
     - **[SecurityConfig.java](file:///d:/IT211/Me/src/main/java/atmin/infrastructure/security/SecurityConfig.java) [Cập nhật]**: Ánh xạ phân quyền mới, bảo vệ `/api/v1/admin/**` chỉ cho phép vai trò `ADMIN` truy cập.
@@ -439,3 +439,68 @@ BUILD SUCCESSFUL in 10s
 ```
 
 Hệ thống hoàn toàn sạch lỗi cú pháp, sẵn sàng phục vụ việc phát triển tiếp các tầng Service và Controller tương ứng cho các nghiệp vụ đặt sân và quản lý hình ảnh.
+
+## 📌 [Cập nhật ngày 14/06/2026 - Lần 6] - Di chuyển sang Redis, Ghi Log hiệu năng AOP, Thiết lập Unit Tests và MDC
+
+Hệ thống đã trải qua đợt nâng cấp toàn diện về hiệu năng lưu trữ Token, đo lường độ trễ API, bổ sung bộ kiểm thử tự động và hoàn thiện hệ thống Structured Logging với MDC:
+
+### 1. Di chuyển lưu trữ Token sang Redis (FR-13)
+*   **Chi tiết thay đổi:**
+    *   Tích hợp thư viện `spring-boot-starter-data-redis` trong `build.gradle`.
+    *   Cấu hình kết nối Redis tại `application.properties`.
+    *   Tạo lớp cấu hình `RedisConfig.java` để khai báo bean `StringRedisTemplate`.
+    *   Tạo lớp DTO `RefreshTokenRedis.java` và thiết kế các repository `TokenBlacklistRepository.java`, `RefreshTokenRepository.java` tương tác trực tiếp với Redis dưới dạng cấu trúc key-value có thời gian tự động hết hạn (TTL).
+    *   Cập nhật logic nghiệp vụ `login`, `logout`, và `refreshToken` trong `AuthService.java` để loại bỏ hoàn toàn các bảng MySQL cũ phục vụ lưu trữ Token.
+
+### 2. Triển khai Logging Aspect thời gian thực hiện (FR-11)
+*   **Chi tiết thay đổi:**
+    *   Tạo khía cạnh `LoggingAspect.java` sử dụng AOP để tự động bắt các phương thức thuộc package `atmin.controller..*` và `atmin.service.impl..*`.
+    *   Đo lường thời gian thực thi của từng phương thức và ghi log dưới dạng: `[PERFORMANCE] Class -> Method() executed in X ms`.
+
+### 3. Thiết lập bộ Unit Tests tiêu chuẩn (FR-12)
+*   **Chi tiết thay đổi:**
+    *   Xây dựng các lớp kiểm thử dịch vụ: `AuthServiceTest.java`, `AdminServiceTest.java`.
+    *   Xây dựng các lớp kiểm thử Web Controller sử dụng `@WebMvcTest` và MockMvc: `AuthControllerTest.java`, `AdminControllerTest.java`.
+    *   Loại trừ bộ lọc `JwtAuthenticationFilter` ra khỏi test context của MockMvc để tránh lỗi nạp chồng context bảo mật.
+
+### 4. Cải tiến SRS Compliance & Cấu hình Serialization
+*   **Chi tiết thay đổi:**
+    *   Cập nhật `AdminService.java` sử dụng Java 8 Stream API để chuyển đổi Entity sang DTO đúng theo yêu cầu đặc tả (UC-02).
+    *   Sửa đổi thuộc tính cấu hình không chính xác `spring.data.web.page.serialization-mode=via_dto` thành `spring.data.web.pageable.serialization-mode=via-dto` trong `application.properties` để tránh lỗi cảnh báo của Spring Boot.
+    *   Cấu hình custom tên người gửi email hiển thị qua thuộc tính `spring.mail.from-name` và inject vào `EmailService.java`.
+
+### 5. Nâng cấp hệ thống Log Production với MDC
+*   **Chi tiết thay đổi:**
+    *   Tạo `MdcLoggingFilter.java` tự động gán `traceId` (UUID) và thông tin request (`method`, `uri`, `username`) vào MDC.
+    *   Đăng ký `MdcLoggingFilter` vào `SecurityConfig.java` và tích hợp cập nhật username từ JWT trong `JwtAuthenticationFilter.java`.
+    *   Cấu hình `logback-spring.xml` để tự động in traceId và username trước mọi dòng log, giới hạn in stacktrace tối đa 10 dòng trên Console và ẩn hoàn toàn stacktrace trong file log để giữ file log sạch đẹp.
+
+---
+
+## 📌 [Cập nhật ngày 15/06/2026 - Lần 7] - Khắc phục lỗi NullPointerException, Bảo mật cấu hình DB & Cân chỉnh thứ tự bộ lọc Security
+
+Đợt cập nhật này tập trung vào việc khắc phục triệt để các lỗi logic, tăng cường bảo mật thông tin cấu hình, tối ưu hóa thứ tự hoạt động của các bộ lọc và bổ sung kiểm thử tự động:
+
+### 1. Bảo mật mật khẩu Database và Cơ chế tải cấu hình thông minh trong Tests
+*   **Chi tiết thay đổi:**
+    *   Thêm biến môi trường `DB_PASSWORD=Duong170226@` vào file `.env`.
+    *   Cấu hình `spring.datasource.password=${DB_PASSWORD}` trong `application.properties` để tránh lộ mật khẩu database khi đẩy code lên Git.
+    *   Chuyển hàm `loadDotenv()` trong `Application.java` từ phương thức `main` vào khối khởi tạo tĩnh `static {}` của lớp. Điều này giúp toàn bộ các kiểm thử (Unit Test & Integration Test sử dụng `@SpringBootTest`) tự động nạp các biến cấu hình từ `.env` ngay khi class `Application` được load, khắc phục triệt để lỗi kết nối cơ sở dữ liệu khi chạy test tự động.
+
+### 2. Sửa lỗi NullPointerException trong AdminService khi cập nhật người dùng
+*   **Chi tiết thay đổi:**
+    *   Trong `AdminService.updateUser()`, thay đổi dòng gán `user.setEnabled(request.getIsEnabled())` thành `if (request.getIsEnabled() != null) { user.setEnabled(request.getIsEnabled()); }` nhằm tránh lỗi crash unboxing kiểu nguyên thủy `boolean` từ đối tượng `Boolean` null.
+    *   Bổ sung Unit Test `updateUser_NullIsEnabled_Success` trong `AdminServiceTest.java` để đảm bảo hệ thống cập nhật bình thường và bảo toàn trạng thái kích hoạt cũ của người dùng khi request truyền `isEnabled` là `null`.
+
+### 3. Khắc phục lỗi thứ tự Filter của MDC và JWT Security
+*   **Chi tiết thay đổi:**
+    *   Trong `SecurityConfig.java`, cân chỉnh lại thứ tự đăng ký filter:
+        *   Đăng ký `jwtAuthenticationFilter` trước `UsernamePasswordAuthenticationFilter.class`.
+        *   Đăng ký `mdcLoggingFilter` trước `JwtAuthenticationFilter.class`.
+    *   Sự thay đổi này đảm bảo `MdcLoggingFilter` luôn được chạy trước `JwtAuthenticationFilter`, giúp toàn bộ log phát sinh trong quá trình trích xuất và xác thực Token JWT đều có đầy đủ thông tin `traceId` và thông tin context HTTP.
+
+### 4. Loại bỏ các đoạn code và import dư thừa
+*   **Chi tiết thay đổi:**
+    *   Gói tác vụ dọn dẹp scheduler đã chuyển giao hoàn toàn sang Redis TTL nên tiến hành xóa bỏ annotation `@EnableScheduling` và các import liên quan trong `Application.java`.
+    *   Loại bỏ import không sử dụng `java.time.LocalDateTime` trong lớp `RefreshTokenRedis.java`.
+

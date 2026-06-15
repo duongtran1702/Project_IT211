@@ -1,4 +1,4 @@
-package atmin.service.Impl;
+package atmin.service.impl;
 
 import atmin.common.exception.DuplicateResourceException;
 import atmin.common.exception.ResourceNotFoundException;
@@ -97,7 +97,9 @@ public class AdminService implements IAdminService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhoneNumber(request.getPhoneNumber());
-        user.setEnabled(request.getIsEnabled());
+        if (request.getIsEnabled() != null) {
+            user.setEnabled(request.getIsEnabled());
+        }
 
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
             List<Role> foundRoles = roleRepository.findAllById(request.getRoleIds());

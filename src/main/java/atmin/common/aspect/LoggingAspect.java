@@ -18,7 +18,7 @@ import org.aspectj.lang.annotation.Around;
 @Slf4j
 public class LoggingAspect {
 
-    @Around("execution(* atmin.controller..*.*(..)) || execution(* atmin.service.Impl..*.*(..))")
+    @Around("execution(* atmin.controller..*.*(..)) || execution(* atmin.service.impl..*.*(..))")
     public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
         long start = System.currentTimeMillis();
         Object proceed = joinPoint.proceed();

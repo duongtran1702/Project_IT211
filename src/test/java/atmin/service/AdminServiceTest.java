@@ -5,7 +5,7 @@ import atmin.controller.admin.dto.response.UserResponse;
 import atmin.entity.Role;
 import atmin.entity.User;
 import atmin.repository.UserRepository;
-import atmin.service.Impl.AdminService;
+import atmin.service.impl.AdminService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,10 +31,16 @@ import static org.mockito.Mockito.*;
  * - when().thenReturn(): Cấu hình giá trị trả về cho mock.
  * - assertThrows(): Kiểm tra exception được ném ra.
  */
+import atmin.controller.admin.dto.request.UserUpdateRequest;
+import atmin.repository.RoleRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 @ExtendWith(MockitoExtension.class)
 class AdminServiceTest {
 
     @Mock private UserRepository userRepository;
+    @Mock private RoleRepository roleRepository;
+    @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private AdminService adminService;
@@ -117,5 +123,44 @@ class AdminServiceTest {
 
         // Kiểm tra thông báo lỗi chứa ID để dễ debug
         assertEquals("User not found with id: 999", exception.getMessage());
+    }
+
+    // ==================== TEST 6 ====================
+    /**
+     * Kịch bản: Cập nhật thông tin user thành công khi isEnabled là null.
+     * <p>
+     * Kỳ vọng:
+     * - Trạng thái enabled của user không bị thay đổi (giữ nguyên giá trị cũ).
+     * - Không xảy ra NullPointerException khi unboxing.
+     */
+    @Test
+    @DisplayName("TC6 - Cập nhật thông tin user thành công khi isEnabled là null")
+    void updateUser_NullIsEnabled_Success() {
+        // ARRANGE
+        User user = createSampleUser();
+        user.setEnabled(true);
+
+        UserUpdateRequest request = UserUpdateRequest.builder()
+                .fullName("Updated Name")
+                .email("updated@email.com")
+                .phoneNumber("0123456789")
+                .isEnabled(null)
+                .roleIds(null)
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // ACT
+        UserResponse response = adminService.updateUser(1L, request);
+
+        // ASSERT
+        assertNotNull(response);
+        assertEquals("Updated Name", response.getFullName());
+        assertEquals("updated@email.com", response.getEmail());
+        assertTrue(user.isEnabled()); // Remains true, not changed to false or crashed with NPE
+
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, times(1)).save(user);
     }
 }

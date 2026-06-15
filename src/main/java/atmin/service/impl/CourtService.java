@@ -1,4 +1,4 @@
-package atmin.service.Impl;
+package atmin.service.impl;
 
 import atmin.common.exception.ResourceNotFoundException;
 import atmin.entity.Court;

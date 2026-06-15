@@ -1,4 +1,4 @@
-package atmin.service.Impl;
+package atmin.service.impl;
 
 import atmin.service.IEmailService;
 import jakarta.mail.MessagingException;

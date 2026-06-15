@@ -9,25 +9,28 @@ Hệ thống được tổ chức theo mô hình **Kiến trúc Lai (Hybrid)** t
 ```text
 src/main/java/atmin/
 │
+├── Application.java                 # 🚀 Lớp khởi chạy ứng dụng Spring Boot
+│
 ├── infrastructure/                  # 1. CỤM TÍNH NĂNG HẠ TẦNG ĐỘC LẬP
+│   │
+│   ├── config/                      # ⚙️ CẤU HÌNH HỆ THỐNG
+│   │   └── RedisConfig.java         # Khởi tạo Bean RedisTemplate và cấu hình kết nối Redis
 │   │
 │   ├── security/                    # 🔐 BỘ LÕI BẢO MẬT KHÔNG TRẠNG THÁI (STATELESS)
 │   │   ├── SecurityConfig.java      # Cấu hình bộ lọc SecurityFilterChain & Ma trận phân quyền URL
 │   │   ├── SecurityExceptionConfig.java # Cấu hình xử lý lỗi bảo mật: AuthenticationEntryPoint (401) & AccessDeniedHandler (403)
+│   │   ├── MdcLoggingFilter.java    # Filter đánh chặn Request, ghi nhận mã định danh người dùng phục vụ truy vết Log
 │   │   ├── principal/
 │   │   │   └── UserDetailServiceCustom.java # Tải dữ liệu định danh người dùng từ Database phục vụ Security
 │   │   └── jwt/
-│   │       ├── JwtAuthenticationFilter.java # Filter đánh chặn Request check Token hợp lệ & đối chiếu Blacklist
+│   │       ├── JwtAuthenticationFilter.java # Filter xác thực Token, đối chiếu danh sách đen Blacklist trong Redis
 │   │       ├── JwtProperties.java   # Class nạp Key cấu hình bằng Lombok từ application.properties
 │   │       └── JwtProvider.java     # Thư viện đúc mã hóa/giải mã và trích xuất Claims từ Token
 │   │
-│   ├── upload/                      # ☁️ HẠ TẦNG LƯU TRỮ ĐÁM MÂY (INTEGRATION SDK CLOUDINARY)
-│   │   ├── UploadService.java       # Tầng Service xử lý upload tệp tin lên Cloudinary có validate định dạng/dung lượng
-│   │   ├── CloudinaryProperties.java # Class nạp Key cấu hình Cloudinary từ application.properties
-│   │   └── CloudinaryConfig.java    # Khởi tạo bean Cloudinary kết nối Cloud Storage
-│   │
-│   └── scheduler/                   # ⏰ TÁC VỤ CHẠY ĐỊNH KỲ TỰ ĐỘNG
-│       └── CleanupScheduler.java    # Quét dọn tự động Refresh Token hết hạn định kỳ lúc 00:00 hàng ngày
+│   └── upload/                      # ☁️ HẠ TẦNG LƯU TRỮ ĐÁM MÂY (INTEGRATION SDK CLOUDINARY)
+│       ├── UploadService.java       # Tầng Service xử lý upload tệp tin lên Cloudinary có validate định dạng/dung lượng
+│       ├── CloudinaryProperties.java # Class nạp Key cấu hình Cloudinary từ application.properties
+│       └── CloudinaryConfig.java    # Khởi tạo bean Cloudinary kết nối Cloud Storage
 │
 ├── controller/                      # 2. TẦNG GIAO TIẾP RESTful API (GOM CỤM FEATURE + LOCAL DTO)
 │   │
@@ -68,32 +71,37 @@ src/main/java/atmin/
 │
 ├── service/                         # 3. TẦNG XỬ LÝ NGHIỆP VỤ (LOGIC LÕI)
 │   │
-│   ├── Impl/                        # Hiện thực hóa chi tiết logic nghiệp vụ hệ thống (Chữ I viết hoa)
+│   ├── impl/                        # Hiện thực hóa chi tiết logic nghiệp vụ hệ thống (viết thường theo quy chuẩn Java)
 │   │   ├── AdminService.java        # Xử lý CRUD người dùng, mã hóa BCrypt khi tạo tài khoản
-│   │   ├── AuthService.java         # Xử lý xác thực, cấp phát/xoay vòng token, đưa token vào blacklist khi logout
+│   │   ├── AuthService.java         # Xử lý xác thực, cấp phát/xoay vòng token, đưa token vào blacklist của Redis khi logout
 │   │   ├── BookingService.java      # Xử lý tạo đặt sân, chống trùng lịch, tính toán giá động, cập nhật trạng thái
+│   │   ├── CourtService.java        # Xử lý CRUD sân cầu lông, cập nhật thông tin và tích hợp upload hình ảnh Cloudinary
 │   │   └── EmailService.java        # Dịch vụ gửi email JavaMailSender chứa mã thông báo đặt lại mật khẩu
 │   │
 │   ├── IAdminService.java           # Hệ thống các Interface nghiệp vụ độc lập
 │   ├── IAuthService.java
 │   ├── IBookingService.java
+│   ├── ICourtService.java
 │   └── IEmailService.java
 │
-├── repository/                      # 4. TẦNG TRUY VẤN CƠ SỞ DỮ LIỆU (SPRING DATA JPA)
+├── repository/                      # 4. TẦNG TRUY VẤN CƠ SỞ DỮ LIỆU (SPRING DATA JPA & REDIS)
+│   │
 │   ├── UserRepository.java          # Thao tác dữ liệu bảng users
 │   ├── RoleRepository.java          # Thao tác dữ liệu bảng roles (ADMIN, MANAGER, CUSTOMER)
-│   ├── RefreshTokenRepository.java  # Quản lý thời hạn và trạng thái thu hồi của Refresh Token
-│   ├── TokenBlacklistRepository.java # Truy vấn danh sách đen Access Token đã bị vô hiệu hóa
 │   ├── CourtRepository.java         # Thao tác thông tin chi tiết từng sân cầu lông
 │   ├── TimeSlotRepository.java      # Quản lý khung giờ hoạt động và price_factor
-│   └── BookingRepository.java       # Theo dõi và quản lý vòng đời đơn đặt lịch
+│   ├── BookingRepository.java       # Theo dõi và quản lý vòng đời đơn đặt lịch
+│   │
+│   └── redis/                       # 🗄️ CƠ SỞ DỮ LIỆU REDIS CACHING
+│       ├── RefreshTokenRepository.java # Lưu trữ và kiểm tra thời hạn Refresh Token trên Redis
+│       ├── TokenBlacklistRepository.java # Truy vấn danh sách đen Access Token đã bị vô hiệu hóa trên Redis
+│       └── dto/
+│           └── RefreshTokenRedis.java # Cấu trúc dữ liệu lưu trữ Refresh Token trên bộ nhớ đệm Redis
 │
 ├── entity/                          # 5. TẦNG THỰC THỂ MAPPING DATABASE (JPA / HIBERNATE ORM)
 │   ├── BaseEntity.java              # Lớp cha trừu tượng [@MappedSuperclass] chứa Audit Trail & Soft Delete
 │   ├── User.java                    # Thực thể Người dùng [Implements UserDetails] tích hợp Security
 │   ├── Role.java                    # Thực thể vai trò (Role)
-│   ├── RefreshToken.java            # Thực thể lưu vết Refresh Token để xoay vòng token bảo mật
-│   ├── TokenBlacklist.java          # Thực thể lưu Access Token bị vô hiệu hóa sau khi đăng xuất
 │   ├── BadmintonCluster.java        # Thực thể cụm sân cầu lông (Chi nhánh)
 │   ├── Court.java                   # Thực thể sân cầu lông (Chứa URL hình ảnh lưu trên Cloudinary)
 │   ├── TimeSlot.java                # Thực thể lưu khung giờ vận hành và hệ số giá

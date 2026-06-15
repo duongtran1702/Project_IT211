@@ -2,8 +2,6 @@ package atmin.repository.redis.dto;
 
 import lombok.*;
 
-import java.time.LocalDateTime;
-
 @Getter
 @Setter
 @NoArgsConstructor
