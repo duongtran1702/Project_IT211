@@ -32,14 +32,8 @@ public class AdminService implements IAdminService {
     @Override
     @Transactional(readOnly = true)
     public Page<UserResponse> getUsers(String keyword, Pageable pageable) {
-        Page<User> usersPage = userRepository.searchUsers(keyword, pageable);
-
-        List<UserResponse> dtoList = usersPage.getContent().stream()
-                .filter(user -> !user.isDeleted())
-                .map(UserResponse::fromEntity)
-                .collect(java.util.stream.Collectors.toList());
-                
-        return new PageImpl<>(dtoList, pageable, usersPage.getTotalElements());
+        return userRepository.searchUsers(keyword, pageable)
+                .map(UserResponse::fromEntity);
     }
 
     @Override

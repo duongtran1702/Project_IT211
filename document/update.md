@@ -504,3 +504,14 @@ Hệ thống đã trải qua đợt nâng cấp toàn diện về hiệu năng l
     *   Gói tác vụ dọn dẹp scheduler đã chuyển giao hoàn toàn sang Redis TTL nên tiến hành xóa bỏ annotation `@EnableScheduling` và các import liên quan trong `Application.java`.
     *   Loại bỏ import không sử dụng `java.time.LocalDateTime` trong lớp `RefreshTokenRedis.java`.
 
+### 5. Tối ưu hóa truy vấn SQL trong BookingService & Dọn dẹp Code Smell trong AdminService
+*   **Chi tiết thay đổi:**
+    *   **Tối ưu truy vấn Lịch sử đặt sân (Booking history):** Thay vì truy vấn đầy đủ thực thể `User` từ database trước khi gọi truy vấn lịch sử (`userRepository.findByUsername(...)`), ta chuyển sang truy vấn trực tiếp bằng tham số `username` thông qua mệnh đề JOIN JPQL (`u.username = :username`). Giải pháp này loại bỏ hoàn toàn một câu lệnh `SELECT` thừa lên bảng `users` trong mỗi request xem lịch sử.
+    *   **Rút gọn map phân trang trong AdminService:** Trong `AdminService.getUsers()`, loại bỏ thao tác stream thủ công, thu thập danh sách và bọc lại bằng `PageImpl` cồng kềnh. Thay thế bằng việc gọi trực tiếp hàm `.map(UserResponse::fromEntity)` được tích hợp sẵn của Spring Data `Page`. Đồng thời, loại bỏ bộ lọc kiểm tra `!user.isDeleted()` thừa trong Java vì thực thể `User` vốn đã có `@SQLRestriction("is_deleted = false")` tự động lọc ở mức database.
+
+### 6. Đồng bộ hóa Giao dịch (Transactional) & Gửi Email bất đồng bộ (Async)
+*   **Chi tiết thay đổi:**
+    *   **Thêm Transactional bảo toàn dữ liệu:** Bổ sung `@Transactional` cho phương thức `register()` của `AuthService.java` để đảm bảo tính toàn vẹn dữ liệu, tự động rollback nếu xảy ra bất kỳ lỗi runtime nào trong quá trình lưu tài khoản mới.
+    *   **Gửi mail không chặn luồng (Non-blocking):** Bổ sung `@EnableAsync` tại `Application.java` và `@Async` trên phương thức `sendResetPasswordEmail()` của `EmailService.java`. Khi người dùng yêu cầu đặt lại mật khẩu, luồng gửi email qua SMTP (mạng ngoài vốn chậm, mất từ 2-5s) sẽ được chuyển giao cho một Thread Pool chạy nền xử lý, giúp API `/forgot-password` phản hồi kết quả về phía Client ngay lập tức chỉ trong vài mili-giây.
+
+

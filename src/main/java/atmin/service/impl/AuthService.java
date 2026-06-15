@@ -48,6 +48,7 @@ public class AuthService implements IAuthService {
     private final IEmailService emailService;
 
     @Override
+    @Transactional
     public void register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new DuplicateResourceException("Username already exists!");

@@ -10,6 +10,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import org.springframework.scheduling.annotation.Async;
+
 import java.io.UnsupportedEncodingException;
 
 @Service
@@ -25,6 +27,7 @@ public class EmailService implements IEmailService {
     private String fromName;
 
     @Override
+    @Async
     public void sendResetPasswordEmail(String toEmail, String token) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

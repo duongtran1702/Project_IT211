@@ -92,10 +92,7 @@ public class BookingService implements IBookingService {
     @Transactional(readOnly = true)
     public Page<BookingResponse> getBookingHistory(Pageable pageable) {
         String username = Objects.requireNonNull(SecurityContextHolder.getContext().getAuthentication()).getName();
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Logged in user not found: " + username));
-
-        return bookingRepository.findBookingsByUser(user, pageable);
+        return bookingRepository.findBookingsByUsername(username, pageable);
     }
 
     @Override
